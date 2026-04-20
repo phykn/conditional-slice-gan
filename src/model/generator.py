@@ -1,3 +1,4 @@
+# src/model/generator.py
 from __future__ import annotations
 
 import torch
@@ -5,89 +6,135 @@ import torch.nn as nn
 from torch.nn.init import constant_, trunc_normal_
 
 
-class UpBlock3D(nn.Module):
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: int,
-        stride: int = 1,
-        padding: int = 0,
-        bias: bool = False,
-        act: bool = True,
-    ) -> None:
+class DownBlock3D(nn.Module):
+    def __init__(self, in_ch: int, out_ch: int) -> None:
         super().__init__()
-        self.conv = nn.ConvTranspose3d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-            bias=bias,
-        )
-        self.bn = nn.BatchNorm3d(out_channels)
+        self.conv = nn.Conv3d(in_ch, out_ch, kernel_size=4, stride=2, padding=1, bias=False)
+        self.bn = nn.BatchNorm3d(out_ch)
+        self.act = nn.LeakyReLU(0.2, inplace=True)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.act(self.bn(self.conv(x)))
+
+
+class UpBlock3D(nn.Module):
+    def __init__(self, in_ch: int, out_ch: int, act: bool = True) -> None:
+        super().__init__()
+        self.conv = nn.ConvTranspose3d(in_ch, out_ch, kernel_size=4, stride=2, padding=1, bias=False)
+        self.bn = nn.BatchNorm3d(out_ch)
         self.act = nn.ReLU(inplace=True) if act else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.act(self.bn(self.conv(x)))
 
 
-class Generator3D(nn.Module):
+class UNet3DGenerator(nn.Module):
     def __init__(
         self,
-        latent_shape: list[int] = [32, 4, 4, 4],
-        channels: list[int] = [1024, 512, 128, 32, 1],
-        kernels: list[int] = [4, 4, 4, 4, 4],
-        strides: list[int] = [2, 2, 2, 2, 2],
-        paddings: list[int] = [2, 2, 2, 2, 3],
+        in_channels: int = 1,
+        enc_channels: list[int] = [64, 128, 256, 512],
+        dec_channels: list[int] = [512, 256, 128, 64],
+        noise_channels: int = 32,
         output: str = "tanh",
     ) -> None:
         super().__init__()
         assert output in ("tanh", "softmax"), "output must be 'tanh' or 'softmax'"
-        self.latent_shape = latent_shape
+        assert len(enc_channels) == len(dec_channels), "encoder/decoder depth must match"
+        self.in_channels = in_channels
+        self.enc_channels = list(enc_channels)
+        self.dec_channels = list(dec_channels)
+        self.noise_channels = noise_channels
         self.output = output
 
-        in_ch = channels[:-1]
-        out_ch = channels[1:]
-        n = len(kernels)
-        acts = [True] * (n - 1) + [False]
+        # Encoder: (C+1) → enc_channels[0] → ... → enc_channels[-1]
+        encs = []
+        in_c = in_channels + 1
+        for out_c in enc_channels:
+            encs.append(DownBlock3D(in_c, out_c))
+            in_c = out_c
+        self.encoders = nn.ModuleList(encs)
 
-        self.layers = nn.Sequential(
-            *[
-                UpBlock3D(
-                    in_channels=a,
-                    out_channels=b,
-                    kernel_size=k,
-                    stride=s,
-                    padding=p,
-                    bias=False,
-                    act=act,
-                )
-                for a, b, k, s, p, act in zip(
-                    in_ch, out_ch, kernels, strides, paddings, acts
-                )
-            ]
-        )
+        # Decoder: input to block i is (prev_dec_out + noise (first only) + skip from matching encoder)
+        # First decoder input = enc_channels[-1] + noise_channels
+        # Subsequent decoder input = dec_channels[i-1] + enc_channels[-(i+1)]
+        decs = []
+        for i, out_c in enumerate(dec_channels):
+            is_last = i == len(dec_channels) - 1
+            if i == 0:
+                in_c = enc_channels[-1] + noise_channels
+            else:
+                in_c = dec_channels[i - 1] + enc_channels[-(i + 1)]
+            decs.append(UpBlock3D(in_c, out_c, act=not is_last))
+        self.decoders = nn.ModuleList(decs)
+
+        self.final = nn.Conv3d(dec_channels[-1], in_channels, kernel_size=1)
+
         self.apply(self._init_weights)
+
+    @property
+    def total_stride(self) -> int:
+        return 2 ** len(self.enc_channels)
 
     @staticmethod
     def _init_weights(m: nn.Module) -> None:
-        if isinstance(m, nn.ConvTranspose3d):
+        if isinstance(m, (nn.Conv3d, nn.ConvTranspose3d)):
             trunc_normal_(m.weight.data, std=0.02)
+            if m.bias is not None:
+                constant_(m.bias.data, 0.0)
         elif isinstance(m, nn.BatchNorm3d):
             constant_(m.weight.data, 1.0)
             constant_(m.bias.data, 0.0)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.layers(x)
+    def _check_shape(self, D: int, H: int, W: int) -> None:
+        s = self.total_stride
+        for i, d in enumerate((D, H, W)):
+            if d % s != 0:
+                raise ValueError(
+                    f"spatial dim {i} ({d}) not divisible by total stride {s}"
+                )
+
+    def forward(
+        self,
+        sparse: torch.Tensor,
+        mask: torch.Tensor,
+        noise: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        B, C, D, H, W = sparse.shape
+        assert mask.shape == (B, 1, D, H, W)
+        self._check_shape(D, H, W)
+
+        x = torch.cat([sparse, mask], dim=1)  # (B, C+1, D, H, W)
+
+        skips: list[torch.Tensor] = []
+        for enc in self.encoders:
+            x = enc(x)
+            skips.append(x)
+
+        # Bottleneck noise injection (concat on channel)
+        if noise is None:
+            noise = torch.randn(
+                B, self.noise_channels, *x.shape[2:], device=x.device, dtype=x.dtype
+            )
+        else:
+            assert noise.shape == (B, self.noise_channels, *x.shape[2:])
+        x = torch.cat([x, noise], dim=1)
+
+        # Decoder with skips (skip from matching encoder level — reverse order)
+        for i, dec in enumerate(self.decoders):
+            x = dec(x)
+            if i < len(self.decoders) - 1:
+                skip = skips[-(i + 2)]
+                x = torch.cat([x, skip], dim=1)
+
+        x = self.final(x)
         if self.output == "tanh":
             return torch.tanh(x)
         return torch.softmax(x, dim=1)
 
-    def sample_noise(self, batch_size: int) -> torch.Tensor:
-        device = next(self.parameters()).device
-        shape = [batch_size] + list(self.latent_shape)
-        return torch.randn(shape, device=device)
-
-    def sample(self, batch_size: int = 1) -> torch.Tensor:
-        return self(self.sample_noise(batch_size))
+    def sample(
+        self,
+        sparse: torch.Tensor,
+        mask: torch.Tensor,
+        noise: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        return self(sparse, mask, noise)
