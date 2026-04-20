@@ -1,8 +1,11 @@
+from __future__ import annotations
+
+import torch
 import torch.nn as nn
 from torch.nn.init import trunc_normal_
 
 
-class BlockConv2d(nn.Module):
+class DownBlock2D(nn.Module):
     def __init__(
         self,
         in_channels: int,
@@ -12,9 +15,8 @@ class BlockConv2d(nn.Module):
         padding: int = 1,
         bias: bool = False,
         act: bool = True,
-    ):
+    ) -> None:
         super().__init__()
-
         self.conv = nn.Conv2d(
             in_channels=in_channels,
             out_channels=out_channels,
@@ -23,53 +25,48 @@ class BlockConv2d(nn.Module):
             padding=padding,
             bias=bias,
         )
-        self.act = nn.ReLU() if act else nn.Identity()
+        self.act = nn.ReLU(inplace=True) if act else nn.Identity()
 
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.act(x)
-        return x
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.act(self.conv(x))
 
 
-class Critic(nn.Module):
+class Critic2D(nn.Module):
     def __init__(
         self,
-        channels: list[int] = [2, 64, 128, 256, 512, 1],
+        channels: list[int] = [1, 64, 128, 256, 512, 1],
         kernels: list[int] = [4, 4, 4, 4, 4],
         strides: list[int] = [2, 2, 2, 2, 2],
         paddings: list[int] = [1, 1, 1, 1, 0],
-    ):
+    ) -> None:
         super().__init__()
+        in_ch = channels[:-1]
+        out_ch = channels[1:]
+        n = len(kernels)
+        acts = [True] * (n - 1) + [False]
 
-        in_channels = channels[:-1]
-        out_channels = channels[1:]
+        self.layers = nn.Sequential(
+            *[
+                DownBlock2D(
+                    in_channels=a,
+                    out_channels=b,
+                    kernel_size=k,
+                    stride=s,
+                    padding=p,
+                    bias=False,
+                    act=act,
+                )
+                for a, b, k, s, p, act in zip(
+                    in_ch, out_ch, kernels, strides, paddings, acts
+                )
+            ]
+        )
+        self.apply(self._init_weights)
 
-        n_layers = len(kernels)
-        acts = [True] * (n_layers - 1) + [False]
-
-        layers = []
-        for in_channel, out_channel, kernel, stride, padding, act in zip(
-            in_channels, out_channels, kernels, strides, paddings, acts
-        ):
-            layer = BlockConv2d(
-                in_channels=in_channel,
-                out_channels=out_channel,
-                kernel_size=kernel,
-                stride=stride,
-                padding=padding,
-                bias=False,
-                act=act,
-            )
-            layers.append(layer)
-
-        self.layers = nn.Sequential(*layers)
-
-    def init_weights(self, m):
+    @staticmethod
+    def _init_weights(m: nn.Module) -> None:
         if isinstance(m, nn.Conv2d):
             trunc_normal_(m.weight.data, std=0.02)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.layers(x)
-
-    def score(self, x):
-        return self(x).mean()
