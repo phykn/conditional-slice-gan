@@ -67,7 +67,8 @@ class Predictor:
             raise ValueError("anchor_images and anchor_indices must have same length")
 
         shape = tuple(shape) if shape is not None else self.train_shape
-        assert len(shape) == 3
+        if len(shape) != 3:
+            raise ValueError(f"shape must be (D, H, W); got {shape}")
         self._validate_shape(shape)
         axis = self.anchor_axis if axis is None else axis
         if axis not in (0, 1, 2):

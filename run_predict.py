@@ -22,13 +22,15 @@ def main() -> None:
     spec = load_anchor_spec(args.anchors)
 
     anchor_entries = spec.get("anchors", [])
-    anchor_images = [load_anchor_image(a["path"]) for a in anchor_entries]
     anchor_indices = [a["index"] for a in anchor_entries]
 
     shape = spec.get("shape")
     axis = spec.get("axis")
 
     predictor = Predictor(run_dir=args.run_dir, device=args.device)
+    anchor_images = [
+        load_anchor_image(a["path"], predictor.in_channels) for a in anchor_entries
+    ]
     out = predictor.predict(
         anchor_images=anchor_images,
         anchor_indices=anchor_indices,
