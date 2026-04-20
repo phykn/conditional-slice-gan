@@ -4,44 +4,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-Training (entry point):
+Training entry point:
 ```bash
-python train.py                          # uses src/config/cfg_gray.yaml, default image_path
-python train.py --path images/foo.png    # override cfg.data.image_path only
+python run_train.py                                  # uses src/config/default.yaml
+python run_train.py --config src/config/default.yaml --image-path images/foo.png
 ```
 
-The config name is hardcoded in `train.py` as `cfg_gray.yaml`. To use a different config, edit the `cfg_name` variable in `train.py:48` (Hydra `compose` resolves it from `src/config/`).
+Dependencies: `pip install -r requirements.txt` (PyTorch from the CUDA 12.6 wheel index).
 
-Dependencies: `pip install -r requirements.txt` (PyTorch is pulled from the CUDA 12.6 wheel index). No test suite, no linter config in-repo (a `.ruff_cache/` exists locally but no `pyproject.toml`/`ruff.toml` is checked in).
+Tests: `pytest tests/ -v` (CPU-only, <30s).
 
-Outputs land in `runs/<YYYYMMDD-HHMMSS>/`: TensorBoard event files in the root, model weights in `weight/` (`generator.pth`, `critic_{0,1,2}.pth`), and the resolved config copied alongside.
+Outputs land in `run/<YYYYMMDD_HHMMSS>/`: TensorBoard events in `logs/`, model weights in `weights/` (`generator.pth`, `critic_{0,1,2}.pth`), and the resolved config copied to `config.yaml`.
 
 ## Architecture
 
-This is a **Slice-GAN-style** trainer: a single 3D generator is supervised by **three independent 2D critics**, one per spatial axis. The generator outputs a 3D volume; the critics each see 2D slices taken along axis 0/1/2. This lets a 3D volume be learned from 2D image data.
+This is a **Slice-GAN-style** trainer: a single 3D generator is supervised by **three independent 2D critics**, one per spatial axis. The generator outputs a 3D volume; each critic sees 2D slices along axis 0/1/2. This lets a 3D volume be learned from 2D image data.
 
-Data flow per training step (`src/train/trainer.py`):
-1. `axis = step % 3` selects which critic to update.
-2. Generator emits `fake_3d` of shape `(B, C, X, Y, Z)`. `fake_3d_transform` rearranges to 2D slices `(B*S, C, H, W)` via einops along the chosen axis.
-3. The chosen critic is trained with WGAN-GP loss (`fake_score - real_score + gp`), gradient penalty in `src/train/penalty.py` (the slice batch is randomly subsampled to match the real batch size before mixing).
-4. Every `train_gen_interval` steps the generator is updated against the **mean** of fake scores from all three critics (loss `-= fake_score / 3` per axis).
+Data flow per training step (`src/training/trainer.py`):
+1. `axis = global_step % 3` selects the critic to update.
+2. `netG.sample(gen_batch_size)` emits `(B, C, X, Y, Z)`. `SliceGANTrainer.slice_along_axis` rearranges to 2D slices `(B*S, C, H, W)` via einops.
+3. The selected critic is trained with WGAN-GP loss (`fake_score - real_score + gp`); `src/training/penalty.py::gradient_penalty` computes GP after subsampling fake slices to match the real batch size.
+4. Every `gen_freq` steps the generator is updated against the mean of all three critics' fake scores (`loss = -stack(scores).mean()`).
 
-Three `DataLoader`s are constructed — one per `slice_axis` — and each is wrapped in `cycle()` (`src/misc.py`) so `next(loader)` is infinite. `ImageDataset.__len__` is hardcoded to 512; one dataset instance is created per axis but currently `slice_axis` is accepted but unused inside `ImageDataset` (axes are differentiated only via the generator-side rearrange).
+Three `DataLoader`s are constructed — one per axis — and each is wrapped in `itertools.cycle` so `next(loader)` is infinite. `SliceDataset.__len__` is driven by `cfg.data.steps_per_epoch`.
 
-### Hydra / OmegaConf wiring
+### Config wiring
 
-Everything is constructed via `hydra.utils.instantiate` driven by `src/config/cfg_gray.yaml`:
-- `src/build.py` is the single composition root: `build_config`, `build_dl`, `build_model` (1 generator + 3 critics), `build_optimizer` (one optimizer per net), `build_trainer`.
-- To swap generator/critic/dataset/optimizer, change the `_target_` in the YAML — no code edits needed.
-- `cfg.device` is read directly to move models to GPU; default is `"cuda"`.
+Everything is composed by explicit `build_*` functions in `src/training/builder.py` driven by `src/config/default.yaml`. There is no Hydra `instantiate`: swapping the generator or critic class means editing the builder, not the YAML.
+
+`check_channel_consistency(cfg)` asserts `cfg.data.in_channels == cfg.generator.channels[-1] == cfg.critic.channels[0]` and `cfg.generator.channels[0] == cfg.generator.latent_shape[0]` at startup, catching config typos early. RGB is enabled by setting `data.in_channels`, `generator.channels[-1]`, and `critic.channels[0]` all to `3`.
 
 ### Generator output mode
 
-`Generator.otype` selects the final activation: `"reg"` → `tanh` (grayscale, matches `cfg_gray.yaml`'s normalize-to-[-1,1] dataset), `"clf"` → `softmax` along channel dim (categorical voxels). Picking `otype` should match `channels[-1]` and the dataset normalization.
-
-### Known rough edges (worth noting before changes)
-
-- `Generator.forward` does not `return x` (`src/model/generator.py:85`). `generate()` therefore returns `None` — training as-is will crash. Any work touching the generator should fix this.
-- `Trainer.__init__` calls `netG.gen_device()` but `Generator` defines `get_device()` (`src/model/generator.py:92`). Same caveat.
-- `Critic.init_weights` is defined but never applied (no `self.apply(...)` in `__init__`).
-- `bat/run.bat` has placeholder paths (`path1`, `path2`) — it's a template, not runnable.
+`Generator3D.output` selects the final activation: `"tanh"` (matches the [-1, 1] dataset normalization) or `"softmax"` (categorical voxels — requires `channels[-1]` to equal the number of classes).
