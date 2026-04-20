@@ -45,7 +45,7 @@ def tiny_cfg(sample_voxel_path) -> DictConfig:
             },
             "critic": {
                 "channels": [1, 4, 8, 1],
-                "kernels": [4, 4, 4],
+                "kernels": [4, 4, 2],
                 "strides": [2, 2, 2],
                 "paddings": [1, 1, 0],
             },
