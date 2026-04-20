@@ -31,7 +31,7 @@ def tiny_cfg(sample_image_path) -> DictConfig:
                 "pin_memory": False,
             },
             "generator": {
-                "latent_shape": [8, 2, 2, 2],
+                "latent_shape": [8, 4, 4, 4],
                 "channels": [8, 4, 1],
                 "kernels": [4, 4],
                 "strides": [2, 2],
