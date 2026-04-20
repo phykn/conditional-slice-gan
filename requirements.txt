@@ -9,3 +9,4 @@ imrw
 tensorboard
 tqdm
 pytest
+tifffile
