@@ -1,0 +1,44 @@
+data:
+  _target_: src.data.dataset.ImageDataset
+  image_path: "images/sample.png"
+  image_size: 64
+
+dl:
+  _target_: torch.utils.data.DataLoader
+  batch_size: 8
+  shuffle: True
+  drop_last: True
+  num_workers: 0
+  pin_memory: True
+  persistent_workers: False
+
+generator:
+  _target_: src.model.generator.Generator
+  d_latent: [ 32, 4, 4, 4 ]
+  channels: [ 1024, 512, 128, 32, 1 ]
+  kernels: [ 4, 4, 4, 4, 4 ]
+  strides: [ 2, 2, 2, 2, 2 ]
+  paddings: [ 2, 2, 2, 2, 3 ]
+  otype: "reg"
+
+critic:
+  _target_: src.model.critic.Critic
+  channels: [ 1, 64, 128, 256, 512, 1 ]
+  kernels: [ 4, 4, 4, 4, 4 ]
+  strides: [ 2, 2, 2, 2, 2 ]
+  paddings: [ 1, 1, 1, 1, 0 ]
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.0001
+  betas: [ 0.9, 0.99 ]
+
+trainer:
+  _target_: src.train.trainer.Trainer
+  gp_lambda: 10.0
+  batch_gen_size: 8
+  train_gen_interval: 5
+  max_step: 360000
+  save_interval: 1000
+
+device: "cuda"
