@@ -1,8 +1,15 @@
 data:
-  image_path: "images/sample.png"
-  image_size: 64
+  voxel_path: "data/sample_volume.npy"
+  train_shape: [64, 64, 64]
   in_channels: 1
   steps_per_epoch: 512
+
+anchor:
+  axis: 0
+  empty_prob: 0.1
+  full_prob: 0.1
+  sparse_min: 1
+  sparse_max: null
 
 dl:
   batch_size: 8
@@ -10,11 +17,9 @@ dl:
   pin_memory: true
 
 generator:
-  latent_shape: [32, 4, 4, 4]
-  channels: [32, 1024, 512, 128, 32, 1]
-  kernels: [4, 4, 4, 4, 4]
-  strides: [2, 2, 2, 2, 2]
-  paddings: [2, 2, 2, 2, 3]
+  enc_channels: [64, 128, 256, 512]
+  dec_channels: [512, 256, 128, 64]
+  noise_channels: 32
   output: "tanh"
 
 critic:
@@ -29,7 +34,7 @@ optimizer:
 
 trainer:
   gp_lambda: 10.0
-  gen_batch_size: 8
+  recon_lambda: 10.0
   gen_freq: 5
   steps: 360000
   save_freq: 1000

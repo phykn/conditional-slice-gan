@@ -1,3 +1,4 @@
+# src/builder.py
 from __future__ import annotations
 
 from itertools import cycle
@@ -9,57 +10,70 @@ from torch.nn import Parameter
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from .data.dataset import SliceDataset
+from .data.dataset import VoxelDataset
 from .model.critic import Critic2D
-from .model.generator import Generator3D
-from .training.trainer import SliceGANTrainer
+from .model.generator import UNet3DGenerator
+from .training.trainer import ConditionalSliceGANTrainer
 
 
 def check_channel_consistency(cfg: DictConfig) -> None:
     c = cfg.data.in_channels
-    g_in = cfg.generator.channels[0]
-    g_out = cfg.generator.channels[-1]
     c_in = cfg.critic.channels[0]
-    latent = cfg.generator.latent_shape[0]
-    assert g_in == latent, (
-        f"generator.channels[0]={g_in} must equal generator.latent_shape[0]={latent}"
-    )
-    assert g_out == c, (
-        f"generator.channels[-1]={g_out} must equal data.in_channels={c}"
-    )
-    assert c_in == c, (
-        f"critic.channels[0]={c_in} must equal data.in_channels={c}"
+
+    assert c_in == c, f"critic.channels[0]={c_in} must equal data.in_channels={c}"
+
+    assert len(cfg.generator.enc_channels) == len(cfg.generator.dec_channels), (
+        "generator.enc_channels and dec_channels must have same length"
     )
 
+    axis = cfg.anchor.axis
+    assert axis in (0, 1, 2), f"anchor.axis must be 0, 1, or 2; got {axis}"
+    ep = cfg.anchor.empty_prob
+    fp = cfg.anchor.full_prob
+    assert 0 <= ep, f"anchor.empty_prob must be >= 0; got {ep}"
+    assert 0 <= fp, f"anchor.full_prob must be >= 0; got {fp}"
+    assert ep + fp <= 1.0, (
+        f"anchor.empty_prob + anchor.full_prob must be <= 1; got {ep + fp}"
+    )
 
-def build_loaders(cfg: DictConfig) -> list[Iterator]:
-    loaders: list[Iterator] = []
-    for _ in range(3):
-        dataset = SliceDataset(
-            image_path=cfg.data.image_path,
-            image_size=cfg.data.image_size,
-            in_channels=cfg.data.in_channels,
-            steps_per_epoch=cfg.data.steps_per_epoch,
+    D_axis = cfg.data.train_shape[axis]
+    smin = cfg.anchor.sparse_min
+    smax = D_axis - 1 if cfg.anchor.sparse_max is None else cfg.anchor.sparse_max
+    assert 1 <= smin <= smax <= D_axis - 1, (
+        f"anchor sparse range invalid: min={smin} max={smax} D={D_axis}"
+    )
+
+    total_stride = 2 ** len(cfg.generator.enc_channels)
+    for i, d in enumerate(cfg.data.train_shape):
+        assert d % total_stride == 0, (
+            f"train_shape[{i}]={d} not divisible by total stride {total_stride}"
         )
-        dl = DataLoader(
-            dataset=dataset,
-            batch_size=cfg.dl.batch_size,
-            shuffle=True,
-            drop_last=True,
-            num_workers=cfg.dl.num_workers,
-            pin_memory=cfg.dl.pin_memory,
-        )
-        loaders.append(cycle(dl))
-    return loaders
 
 
-def build_generator(cfg: DictConfig) -> Generator3D:
-    return Generator3D(
-        latent_shape=list(cfg.generator.latent_shape),
-        channels=list(cfg.generator.channels),
-        kernels=list(cfg.generator.kernels),
-        strides=list(cfg.generator.strides),
-        paddings=list(cfg.generator.paddings),
+def build_loader(cfg: DictConfig) -> Iterator:
+    dataset = VoxelDataset(
+        voxel_path=cfg.data.voxel_path,
+        train_shape=list(cfg.data.train_shape),
+        in_channels=cfg.data.in_channels,
+        steps_per_epoch=cfg.data.steps_per_epoch,
+    )
+    dl = DataLoader(
+        dataset=dataset,
+        batch_size=cfg.dl.batch_size,
+        shuffle=True,
+        drop_last=True,
+        num_workers=cfg.dl.num_workers,
+        pin_memory=cfg.dl.pin_memory,
+    )
+    return cycle(dl)
+
+
+def build_generator(cfg: DictConfig) -> UNet3DGenerator:
+    return UNet3DGenerator(
+        in_channels=cfg.data.in_channels,
+        enc_channels=list(cfg.generator.enc_channels),
+        dec_channels=list(cfg.generator.dec_channels),
+        noise_channels=cfg.generator.noise_channels,
         output=cfg.generator.output,
     )
 
@@ -83,20 +97,25 @@ def build_optimizer(cfg: DictConfig, params: Iterable[Parameter]) -> Optimizer:
 
 def build_trainer(
     cfg: DictConfig,
-    netG: Generator3D,
+    netG: UNet3DGenerator,
     netCs: list[Critic2D],
     optG: Optimizer,
     optCs: list[Optimizer],
-    train_loaders: list[Iterator],
-) -> SliceGANTrainer:
-    return SliceGANTrainer(
+    train_loader: Iterator,
+) -> ConditionalSliceGANTrainer:
+    return ConditionalSliceGANTrainer(
         netG=netG,
         netCs=netCs,
         optG=optG,
         optCs=optCs,
-        train_loaders=train_loaders,
+        train_loader=train_loader,
+        anchor_axis=cfg.anchor.axis,
+        empty_prob=cfg.anchor.empty_prob,
+        full_prob=cfg.anchor.full_prob,
+        sparse_min=cfg.anchor.sparse_min,
+        sparse_max=cfg.anchor.sparse_max,
         gp_lambda=cfg.trainer.gp_lambda,
-        gen_batch_size=cfg.trainer.gen_batch_size,
+        recon_lambda=cfg.trainer.recon_lambda,
         gen_freq=cfg.trainer.gen_freq,
         steps=cfg.trainer.steps,
         save_freq=cfg.trainer.save_freq,

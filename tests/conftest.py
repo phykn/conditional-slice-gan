@@ -1,29 +1,36 @@
+# tests/conftest.py
 from __future__ import annotations
 
 import numpy as np
 import pytest
 from omegaconf import DictConfig, OmegaConf
-from PIL import Image
 
 
 @pytest.fixture
-def sample_image_path(tmp_path):
-    path = tmp_path / "sample.png"
+def sample_voxel_path(tmp_path):
+    path = tmp_path / "vol.npy"
     rng = np.random.default_rng(0)
-    image = rng.integers(0, 256, size=(128, 128, 3), dtype=np.uint8)
-    Image.fromarray(image).save(path)
+    vol = rng.integers(0, 256, size=(32, 32, 32), dtype=np.uint8)
+    np.save(path, vol)
     return str(path)
 
 
 @pytest.fixture
-def tiny_cfg(sample_image_path) -> DictConfig:
+def tiny_cfg(sample_voxel_path) -> DictConfig:
     return OmegaConf.create(
         {
             "data": {
-                "image_path": sample_image_path,
-                "image_size": 16,
+                "voxel_path": sample_voxel_path,
+                "train_shape": [8, 8, 8],
                 "in_channels": 1,
                 "steps_per_epoch": 4,
+            },
+            "anchor": {
+                "axis": 0,
+                "empty_prob": 0.2,
+                "full_prob": 0.2,
+                "sparse_min": 1,
+                "sparse_max": None,
             },
             "dl": {
                 "batch_size": 2,
@@ -31,23 +38,21 @@ def tiny_cfg(sample_image_path) -> DictConfig:
                 "pin_memory": False,
             },
             "generator": {
-                "latent_shape": [8, 4, 4, 4],
-                "channels": [8, 4, 1],
-                "kernels": [4, 4],
-                "strides": [2, 2],
-                "paddings": [1, 1],
+                "enc_channels": [4, 8],
+                "dec_channels": [8, 4],
+                "noise_channels": 4,
                 "output": "tanh",
             },
             "critic": {
                 "channels": [1, 4, 8, 1],
-                "kernels": [4, 4, 4],
+                "kernels": [4, 4, 2],
                 "strides": [2, 2, 2],
                 "paddings": [1, 1, 0],
             },
             "optimizer": {"lr": 1e-4, "betas": [0.9, 0.99]},
             "trainer": {
                 "gp_lambda": 10.0,
-                "gen_batch_size": 2,
+                "recon_lambda": 10.0,
                 "gen_freq": 2,
                 "steps": 2,
                 "save_freq": 1,
