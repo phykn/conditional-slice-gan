@@ -18,19 +18,14 @@ from .training.trainer import ConditionalSliceGANTrainer
 
 def check_channel_consistency(cfg: DictConfig) -> None:
     c = cfg.data.in_channels
-    g_in_ch = cfg.generator.enc_channels[0]
-    g_dec_last = cfg.generator.dec_channels[-1]
     c_in = cfg.critic.channels[0]
 
-    # Critic input channels must match image channels.
     assert c_in == c, f"critic.channels[0]={c_in} must equal data.in_channels={c}"
 
-    # Encoder depth == decoder depth (enforced in generator too, but check here for early error).
     assert len(cfg.generator.enc_channels) == len(cfg.generator.dec_channels), (
         "generator.enc_channels and dec_channels must have same length"
     )
 
-    # Anchor config
     axis = cfg.anchor.axis
     assert axis in (0, 1, 2), f"anchor.axis must be 0, 1, or 2; got {axis}"
     ep = cfg.anchor.empty_prob
@@ -48,15 +43,11 @@ def check_channel_consistency(cfg: DictConfig) -> None:
         f"anchor sparse range invalid: min={smin} max={smax} D={D_axis}"
     )
 
-    # Train shape divisibility
     total_stride = 2 ** len(cfg.generator.enc_channels)
     for i, d in enumerate(cfg.data.train_shape):
         assert d % total_stride == 0, (
             f"train_shape[{i}]={d} not divisible by total stride {total_stride}"
         )
-
-    # Suppress unused locals
-    del g_in_ch, g_dec_last
 
 
 def build_loader(cfg: DictConfig) -> Iterator:
