@@ -4,7 +4,7 @@ import os
 
 import torch
 
-from src.training.builder import (
+from src.builder import (
     build_critic,
     build_generator,
     build_loaders,

@@ -30,7 +30,7 @@ Three `DataLoader`s are constructed — one per axis — and each is wrapped in 
 
 ### Config wiring
 
-Everything is composed by explicit `build_*` functions in `src/training/builder.py` driven by `src/config/default.yaml`. There is no Hydra `instantiate`: swapping the generator or critic class means editing the builder, not the YAML.
+Everything is composed by explicit `build_*` functions in `src/builder.py` driven by `src/config/default.yaml`. There is no Hydra `instantiate`: swapping the generator or critic class means editing the builder, not the YAML.
 
 `check_channel_consistency(cfg)` asserts `cfg.data.in_channels == cfg.generator.channels[-1] == cfg.critic.channels[0]` and `cfg.generator.channels[0] == cfg.generator.latent_shape[0]` at startup, catching config typos early. RGB is enabled by setting `data.in_channels`, `generator.channels[-1]`, and `critic.channels[0]` all to `3`.
 

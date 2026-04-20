@@ -9,10 +9,10 @@ from torch.nn import Parameter
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from ..data.dataset import SliceDataset
-from ..model.critic import Critic2D
-from ..model.generator import Generator3D
-from .trainer import SliceGANTrainer
+from .data.dataset import SliceDataset
+from .model.critic import Critic2D
+from .model.generator import Generator3D
+from .training.trainer import SliceGANTrainer
 
 
 def check_channel_consistency(cfg: DictConfig) -> None:
