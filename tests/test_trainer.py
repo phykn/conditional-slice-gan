@@ -41,15 +41,13 @@ def test_step_at_gen_freq_returns_generator_loss(tiny_cfg):
 
 def test_empty_regime_skips_recon(tiny_cfg):
     tiny_cfg.anchor.empty_prob = 1.0
-    tiny_cfg.anchor.full_prob = 0.0
     t = _trainer(tiny_cfg)
     losses = t.step(global_step=2)
     assert losses["recon_loss"] == 0.0
 
 
-def test_full_regime_recon_nonzero(tiny_cfg):
+def test_sparse_regime_recon_nonzero(tiny_cfg):
     tiny_cfg.anchor.empty_prob = 0.0
-    tiny_cfg.anchor.full_prob = 1.0
     t = _trainer(tiny_cfg)
     losses = t.step(global_step=2)
     assert losses["recon_loss"] > 0.0
@@ -79,9 +77,6 @@ def test_critic_real_batch_size(tiny_cfg):
 def test_sparse_only_along_anchor_axis(tiny_cfg):
     """Sparse/mask should only have nonzero entries at the anchor axis."""
     tiny_cfg.anchor.empty_prob = 0.0
-    tiny_cfg.anchor.full_prob = 0.0
-    tiny_cfg.anchor.sparse_min = 1
-    tiny_cfg.anchor.sparse_max = 3
     t = _trainer(tiny_cfg)
     _real, sparse, mask = t._sample_batch(axis=0)
     # anchor_axis=0, train_shape=(8,8,8). Each planted slice spans full HxW.

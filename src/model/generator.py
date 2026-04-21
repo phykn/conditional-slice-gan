@@ -6,7 +6,9 @@ from torch.nn.init import constant_, trunc_normal_
 class DownBlock3D(nn.Module):
     def __init__(self, in_ch: int, out_ch: int) -> None:
         super().__init__()
-        self.conv = nn.Conv3d(in_ch, out_ch, kernel_size=4, stride=2, padding=1, bias=False)
+        self.conv = nn.Conv3d(
+            in_ch, out_ch, kernel_size=4, stride=2, padding=1, bias=False
+        )
         self.bn = nn.BatchNorm3d(out_ch)
         self.act = nn.LeakyReLU(0.2, inplace=True)
 
@@ -17,7 +19,9 @@ class DownBlock3D(nn.Module):
 class UpBlock3D(nn.Module):
     def __init__(self, in_ch: int, out_ch: int, act: bool = True) -> None:
         super().__init__()
-        self.conv = nn.ConvTranspose3d(in_ch, out_ch, kernel_size=4, stride=2, padding=1, bias=False)
+        self.conv = nn.ConvTranspose3d(
+            in_ch, out_ch, kernel_size=4, stride=2, padding=1, bias=False
+        )
         self.bn = nn.BatchNorm3d(out_ch)
         self.act = nn.ReLU(inplace=True) if act else nn.Identity()
 
@@ -36,7 +40,9 @@ class UNet3DGenerator(nn.Module):
     ) -> None:
         super().__init__()
         assert output in ("tanh", "softmax"), "output must be 'tanh' or 'softmax'"
-        assert len(enc_channels) == len(dec_channels), "encoder/decoder depth must match"
+        assert len(enc_channels) == len(dec_channels), (
+            "encoder/decoder depth must match"
+        )
         self.in_channels = in_channels
         self.enc_channels = list(enc_channels)
         self.dec_channels = list(dec_channels)

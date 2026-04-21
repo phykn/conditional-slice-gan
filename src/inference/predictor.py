@@ -85,8 +85,11 @@ class Predictor:
             gen = torch.Generator(device=self.device).manual_seed(seed)
             bottleneck = [s // self.netG.total_stride for s in shape]
             noise = torch.randn(
-                1, self.netG.noise_channels, *bottleneck,
-                device=self.device, generator=gen,
+                1,
+                self.netG.noise_channels,
+                *bottleneck,
+                device=self.device,
+                generator=gen,
             )
         else:
             noise = None

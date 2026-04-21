@@ -6,6 +6,7 @@ from omegaconf import DictConfig, OmegaConf
 @pytest.fixture
 def sample_image_dir(tmp_path):
     import cv2
+
     d = tmp_path / "images"
     d.mkdir()
     rng = np.random.default_rng(42)
@@ -32,9 +33,6 @@ def tiny_cfg(sample_image_dir) -> DictConfig:
             "anchor": {
                 "axis": 0,
                 "empty_prob": 0.2,
-                "full_prob": 0.2,
-                "sparse_min": 1,
-                "sparse_max": None,
                 "min_gap": 1,
             },
             "dl": {

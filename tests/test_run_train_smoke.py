@@ -22,9 +22,6 @@ def _tiny_cfg(img_dir: str) -> dict:
         "anchor": {
             "axis": 0,
             "empty_prob": 0.33,
-            "full_prob": 0.33,
-            "sparse_min": 1,
-            "sparse_max": None,
             "min_gap": 1,
         },
         "dl": {"batch_size": 2, "num_workers": 0, "pin_memory": False},
@@ -65,9 +62,14 @@ def test_run_train_end_to_end(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
     res = subprocess.run(
-        [sys.executable, os.path.join(os.path.dirname(__file__), "..", "run_train.py"),
-         "--config", str(cfg_path)],
-        capture_output=True, text=True,
+        [
+            sys.executable,
+            os.path.join(os.path.dirname(__file__), "..", "run_train.py"),
+            "--config",
+            str(cfg_path),
+        ],
+        capture_output=True,
+        text=True,
     )
     assert res.returncode == 0, f"stdout:\n{res.stdout}\nstderr:\n{res.stderr}"
 
@@ -90,16 +92,20 @@ def test_run_train_unconditional(tmp_path, monkeypatch):
 
     cfg = _tiny_cfg(str(img_dir))
     cfg["anchor"]["empty_prob"] = 1.0
-    cfg["anchor"]["full_prob"] = 0.0
 
     cfg_path = tmp_path / "config.yaml"
     OmegaConf.save(OmegaConf.create(cfg), cfg_path)
 
     monkeypatch.chdir(tmp_path)
     res = subprocess.run(
-        [sys.executable, os.path.join(os.path.dirname(__file__), "..", "run_train.py"),
-         "--config", str(cfg_path)],
-        capture_output=True, text=True,
+        [
+            sys.executable,
+            os.path.join(os.path.dirname(__file__), "..", "run_train.py"),
+            "--config",
+            str(cfg_path),
+        ],
+        capture_output=True,
+        text=True,
     )
     assert res.returncode == 0, f"stdout:\n{res.stdout}\nstderr:\n{res.stderr}"
 

@@ -3,10 +3,19 @@ import random
 import pytest
 
 from src.data.anchor_sampling import (
+    AnchorSpec,
     axis_index,
     choose_anchor_count,
     sample_positions_with_gap,
 )
+
+
+def _spec(
+    empty_prob: float = 0.0,
+    axis: int = 0,
+    min_gap: int = 1,
+) -> AnchorSpec:
+    return AnchorSpec(axis=axis, empty_prob=empty_prob, min_gap=min_gap)
 
 
 def test_axis_index_axis_0():
@@ -25,46 +34,38 @@ def test_axis_index_axis_2():
 
 
 def test_choose_anchor_count_empty():
+    spec = _spec(empty_prob=1.0)
     for _ in range(20):
-        K = choose_anchor_count(
-            D_axis=8, empty_prob=1.0, full_prob=0.0,
-            sparse_min=1, sparse_max=7,
-        )
-        assert K == 0
+        assert choose_anchor_count(D_axis=8, spec=spec) == 0
 
 
-def test_choose_anchor_count_full():
-    for _ in range(20):
-        K = choose_anchor_count(
-            D_axis=8, empty_prob=0.0, full_prob=1.0,
-            sparse_min=1, sparse_max=7,
-        )
-        assert K == 8
-
-
-def test_choose_anchor_count_sparse_range():
+def test_choose_anchor_count_range_gap_1():
+    # D_axis=8, min_gap=1 → max_K = 7, K ∈ [1, 7].
     random.seed(0)
+    spec = _spec(min_gap=1)
     seen = set()
     for _ in range(200):
-        K = choose_anchor_count(
-            D_axis=8, empty_prob=0.0, full_prob=0.0,
-            sparse_min=3, sparse_max=5,
-        )
-        assert 3 <= K <= 5
+        K = choose_anchor_count(D_axis=8, spec=spec)
+        assert 1 <= K <= 7
         seen.add(K)
-    assert seen == {3, 4, 5}
+    assert seen == set(range(1, 8))
+
+
+def test_choose_anchor_count_range_gap_larger():
+    # D_axis=8, min_gap=3 → max_K = min(7, 7//3+1) = 3, K ∈ [1, 3].
+    random.seed(0)
+    spec = _spec(min_gap=3)
+    seen = set()
+    for _ in range(200):
+        K = choose_anchor_count(D_axis=8, spec=spec)
+        assert 1 <= K <= 3
+        seen.add(K)
+    assert seen == {1, 2, 3}
 
 
 def test_sample_positions_K_zero():
     assert sample_positions_with_gap(D_axis=8, K=0, min_gap=1) == []
     assert sample_positions_with_gap(D_axis=8, K=0, min_gap=3) == []
-
-
-def test_sample_positions_full_requires_gap_1():
-    pos = sample_positions_with_gap(D_axis=8, K=8, min_gap=1)
-    assert pos == list(range(8))
-    with pytest.raises(AssertionError):
-        sample_positions_with_gap(D_axis=8, K=8, min_gap=2)
 
 
 def test_sample_positions_gap_1_distinct():

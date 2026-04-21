@@ -1,6 +1,6 @@
 # conditional-slice-gan
 
-A conditional Slice-GAN: one 3D U-Net generator supervised by **three independent 2D critics** (one per spatial axis) under WGAN-GP, plus an L1 reconstruction loss at anchor positions. A single checkpoint handles three regimes at inference time — unconditional, sparse-conditional, and full-identity — switched by the number of anchor images supplied.
+A conditional Slice-GAN: one 3D U-Net generator supervised by **three independent 2D critics** (one per spatial axis) under WGAN-GP, plus an L1 reconstruction loss at anchor positions. A single checkpoint handles both unconditional generation and sparse-conditional generation — switched implicitly by the number of anchor images supplied at inference.
 
 ## Why this exists
 
@@ -20,7 +20,7 @@ Real-world slicing (FIB, microtome, serial-section SEM) produces a **handful of 
 
 At each step we **synthesize** anchor conditions on the fly:
 
-1. Draw `K` from three regimes — `K = 0` (empty), `K = D` (full), or `K ∈ [sparse_min, sparse_max]` (sparse) — with probabilities `empty_prob` / `full_prob` / (remaining).
+1. Draw `K` from two regimes — `K = 0` (empty, probability `empty_prob`) or `K ∈ [1, max_K]` (sparse, remaining probability). `max_K = min(D_axis - 1, (D_axis - 1) // min_gap + 1)` — the largest count that still fits under `min_gap` spacing, so `min_gap` alone caps how many anchors can appear.
 2. Sample `K` 2D images from the anchor-axis pool.
 3. Plant them at `K` distinct positions along `anchor.axis`, separated by at least `min_gap`, to build `(sparse, mask)`.
 4. Feed `(sparse, mask)` to the 3D U-Net generator; it emits a full `(B, C, D, H, W)` volume.
@@ -41,7 +41,7 @@ Two losses split the work:
 
 **Single anchor axis.** Physical slicing cuts one direction only, so every anchor — both the ones synthesized during training and the ones a user supplies at inference — sits perpendicular to `anchor.axis`. The other two axes are governed solely by their critics' distribution pressure.
 
-**Minimum gap between anchors (`min_gap`).** Two unrelated anchors placed on adjacent slots are a contradiction for the model: the critic demands smooth transitions, while recon demands "*this here, that there.*" The solution is to spread anchors. `min_gap` enforces this during training by construction (exact sampling via `sample_positions_with_gap`) and is recommended at inference too. For realistic FIB spacing, 4 or 8 is typical. When `min_gap > 1`, the full regime (`K = D`) is disabled.
+**Minimum gap between anchors (`min_gap`).** Two unrelated anchors placed on adjacent slots are a contradiction for the model: the critic demands smooth transitions, while recon demands "*this here, that there.*" The solution is to spread anchors. `min_gap` enforces this during training by construction (exact sampling via `sample_positions_with_gap`) and is recommended at inference too. For realistic FIB spacing, 4 or 8 is typical.
 
 ## Inference: three regimes, one model
 
@@ -66,7 +66,7 @@ Rules at inference: anchors must lie on the training `anchor.axis`; spacing betw
 
 3. Review `configs/default.yaml`. The main knobs:
     - `data` — `train_shape`, `in_channels` (1 or 3), `images.{shared,axis0,axis1,axis2}`
-    - `anchor` — `axis`, `empty_prob`, `full_prob`, `sparse_min`, `sparse_max`, `min_gap`
+    - `anchor` — `axis`, `empty_prob`, `min_gap`
     - `generator` — `enc_channels`, `dec_channels`, `noise_channels`, `output` (`tanh` or `softmax`)
     - `critic` — `channels`, `kernels`, `strides`, `paddings`
     - `optimizer` — `lr`, `betas`
@@ -97,7 +97,7 @@ Scalars under `train/`: `critic_real_score`, `critic_fake_score`, `wass_dist`, `
 - `data.in_channels` must equal `critic.channels[0]` (1 for grayscale, 3 for RGB).
 - `generator` uses `enc_channels` / `dec_channels` (same length); the first encoder block takes `in_channels + 1 mask` and the final layer projects back to `in_channels` via a 1×1 Conv3d. You set `in_channels` once on `data`, not on generator.
 - `data.train_shape` must be divisible by `2 ** len(enc_channels)`.
-- `anchor.min_gap ≥ 1`. If `full_prob > 0`, `min_gap` must be `1`. `sparse_max` must be feasible under `min_gap` along the anchor axis.
+- `anchor.min_gap ≥ 1`. Larger values reduce the number of anchors per batch — the upper bound on K is derived automatically.
 - `data.images` must resolve to a per-axis pool for each of 0/1/2, either through `shared` or through `axisK` overrides.
 
 `validate_config(cfg)` runs at startup and refuses to proceed on mismatch.

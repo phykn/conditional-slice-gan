@@ -49,6 +49,7 @@ def test_predict_full_identity(tmp_path, tiny_cfg):
 def test_predict_rejects_shape_over_2x(tmp_path, tiny_cfg):
     p = Predictor(_make_run_dir(tmp_path, tiny_cfg), device="cpu")
     import pytest
+
     with pytest.raises(ValueError):
         p.predict(anchor_images=[], anchor_indices=[], shape=(32, 8, 8))  # 4× on axis 0
 

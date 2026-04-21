@@ -8,6 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from ..data.anchor_sampling import (
+    AnchorSpec,
     axis_index,
     choose_anchor_count,
     sample_positions_with_gap,
@@ -19,6 +20,12 @@ from .penalty import gradient_penalty
 
 
 def _slice_along_axis(volume: torch.Tensor, axis: int) -> torch.Tensor:
+    """Flatten a 3D volume into 2D slices along `axis`, merging slice index into batch.
+
+    Input: ``(B, C, X, Y, Z)``. Output: ``(B * S_axis, C, H', W')`` where S_axis is the
+    spatial size along `axis` and ``(H', W')`` are the remaining two spatial dims in
+    their original order. Used to feed a 3D generator output to a 2D critic.
+    """
     if axis == 0:
         return rearrange(volume, "b c x y z -> (b x) c y z")
     if axis == 1:
@@ -46,12 +53,7 @@ class ConditionalSliceGANTrainer:
         optG: Optimizer,
         optCs: list[Optimizer],
         image_loader: ImageDataset,
-        anchor_axis: int,
-        empty_prob: float,
-        full_prob: float,
-        sparse_min: int,
-        sparse_max: int | None,
-        min_gap: int,
+        anchor: AnchorSpec,
         train_shape: tuple[int, int, int],
         in_channels: int,
         batch_size: int,
@@ -69,12 +71,7 @@ class ConditionalSliceGANTrainer:
         self.optG = optG
         self.optCs = optCs
         self.image_loader = image_loader
-        self.anchor_axis = anchor_axis
-        self.empty_prob = empty_prob
-        self.full_prob = full_prob
-        self.sparse_min = sparse_min
-        self.sparse_max = sparse_max
-        self.min_gap = min_gap
+        self.anchor = anchor
         self.train_shape = tuple(train_shape)
         self.in_channels = in_channels
         self.batch_size = batch_size
@@ -94,11 +91,10 @@ class ConditionalSliceGANTrainer:
         """Draw a batch-shared K, then synthesize (sparse, mask) per sample by
         placing K 2D images from the anchor-axis pool at distinct positions
         separated by at least `min_gap`."""
+        anchor_axis = self.anchor.axis
         D, H, W = self.train_shape
-        D_axis = self.train_shape[self.anchor_axis]
-        K = choose_anchor_count(
-            D_axis, self.empty_prob, self.full_prob, self.sparse_min, self.sparse_max,
-        )
+        D_axis = self.train_shape[anchor_axis]
+        K = choose_anchor_count(D_axis, self.anchor)
 
         B = self.batch_size
         sparse = torch.zeros((B, self.in_channels, D, H, W), device=self.device)
@@ -107,13 +103,13 @@ class ConditionalSliceGANTrainer:
         if K == 0:
             return sparse, mask
 
-        imgs = self.image_loader.sample(self.anchor_axis, B * K).to(self.device)
+        imgs = self.image_loader.sample(anchor_axis, B * K).to(self.device)
         imgs = imgs.view(B, K, *imgs.shape[1:])
 
         for b in range(B):
-            positions = sample_positions_with_gap(D_axis, K, self.min_gap)
+            positions = sample_positions_with_gap(D_axis, K, self.anchor.min_gap)
             for k, p in enumerate(positions):
-                slot = (b,) + axis_index(self.anchor_axis, p)
+                slot = (b,) + axis_index(anchor_axis, p)
                 sparse[slot] = imgs[b, k]
                 mask[slot] = 1.0
 
@@ -125,7 +121,8 @@ class ConditionalSliceGANTrainer:
         sparse, mask = self._make_anchor_batch()
         S_axis = self.train_shape[axis]
         real_2d = self.image_loader.sample(
-            axis, count=self.batch_size * S_axis,
+            axis,
+            count=self.batch_size * S_axis,
         ).to(self.device)
         return real_2d, sparse, mask
 

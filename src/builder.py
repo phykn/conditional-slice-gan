@@ -5,6 +5,7 @@ from omegaconf import DictConfig
 from torch.nn import Parameter
 from torch.optim import Optimizer
 
+from .data.anchor_sampling import AnchorSpec
 from .data.image_dataset import ImageDataset, resolve_pools
 from .model.critic import Critic2D
 from .model.generator import UNet3DGenerator
@@ -12,52 +13,55 @@ from .training.trainer import ConditionalSliceGANTrainer
 
 
 def validate_config(cfg: DictConfig) -> None:
-    c = cfg.data.in_channels
-    c_in = cfg.critic.channels[0]
+    _validate_channels(cfg)
+    _validate_generator_depth(cfg)
+    _validate_anchor(cfg)
+    _validate_shape_divisibility(cfg)
+    _validate_image_pools(cfg)
 
-    assert c_in == c, f"critic.channels[0]={c_in} must equal data.in_channels={c}"
 
-    assert len(cfg.generator.enc_channels) == len(cfg.generator.dec_channels), (
-        "generator.enc_channels and dec_channels must have same length"
-    )
+def _validate_channels(cfg: DictConfig) -> None:
+    in_channels = cfg.data.in_channels
+    critic_in = cfg.critic.channels[0]
+    if critic_in != in_channels:
+        raise ValueError(
+            f"critic.channels[0]={critic_in} must equal data.in_channels={in_channels}"
+        )
 
+
+def _validate_generator_depth(cfg: DictConfig) -> None:
+    if len(cfg.generator.enc_channels) != len(cfg.generator.dec_channels):
+        raise ValueError(
+            "generator.enc_channels and dec_channels must have same length"
+        )
+
+
+def _validate_anchor(cfg: DictConfig) -> None:
     axis = cfg.anchor.axis
-    assert axis in (0, 1, 2), f"anchor.axis must be 0, 1, or 2; got {axis}"
-    ep = cfg.anchor.empty_prob
-    fp = cfg.anchor.full_prob
-    assert 0 <= ep, f"anchor.empty_prob must be >= 0; got {ep}"
-    assert 0 <= fp, f"anchor.full_prob must be >= 0; got {fp}"
-    assert ep + fp <= 1.0, (
-        f"anchor.empty_prob + anchor.full_prob must be <= 1; got {ep + fp}"
-    )
+    if axis not in (0, 1, 2):
+        raise ValueError(f"anchor.axis must be 0, 1, or 2; got {axis}")
 
-    D_axis = cfg.data.train_shape[axis]
-    smin = cfg.anchor.sparse_min
-    smax = D_axis - 1 if cfg.anchor.sparse_max is None else cfg.anchor.sparse_max
-    assert 1 <= smin <= smax <= D_axis - 1, (
-        f"anchor sparse range invalid: min={smin} max={smax} D={D_axis}"
-    )
+    empty_prob = cfg.anchor.empty_prob
+    if not 0.0 <= empty_prob <= 1.0:
+        raise ValueError(f"anchor.empty_prob must be in [0, 1]; got {empty_prob}")
 
-    g = cfg.anchor.min_gap
-    assert g >= 1, f"anchor.min_gap must be >= 1; got {g}"
-    if g > 1 and fp > 0.0:
-        raise ValueError(
-            f"anchor.full_prob={fp} > 0 requires min_gap=1; got min_gap={g}"
-        )
-    if (smax - 1) * (g - 1) > D_axis - smax:
-        raise ValueError(
-            f"anchor sparse_max={smax} infeasible with min_gap={g} on axis D={D_axis}: "
-            f"need smax + (smax-1)*(min_gap-1) <= D"
-        )
+    min_gap = cfg.anchor.min_gap
+    if min_gap < 1:
+        raise ValueError(f"anchor.min_gap must be >= 1; got {min_gap}")
 
+
+def _validate_shape_divisibility(cfg: DictConfig) -> None:
     total_stride = 2 ** len(cfg.generator.enc_channels)
     for i, d in enumerate(cfg.data.train_shape):
-        assert d % total_stride == 0, (
-            f"train_shape[{i}]={d} not divisible by total stride {total_stride}"
-        )
+        if d % total_stride != 0:
+            raise ValueError(
+                f"train_shape[{i}]={d} not divisible by total stride {total_stride}"
+            )
 
+
+def _validate_image_pools(cfg: DictConfig) -> None:
     images = cfg.data.images
-    # Raises ValueError listing unresolved axes.
+    # resolve_pools raises ValueError listing unresolved axes.
     resolve_pools(
         shared=images.shared,
         axis0=images.axis0,
@@ -108,6 +112,14 @@ def build_optimizer(cfg: DictConfig, params: Iterable[Parameter]) -> Optimizer:
     )
 
 
+def build_anchor_spec(cfg: DictConfig) -> AnchorSpec:
+    return AnchorSpec(
+        axis=cfg.anchor.axis,
+        empty_prob=cfg.anchor.empty_prob,
+        min_gap=cfg.anchor.min_gap,
+    )
+
+
 def build_trainer(
     cfg: DictConfig,
     netG: UNet3DGenerator,
@@ -122,12 +134,7 @@ def build_trainer(
         optG=optG,
         optCs=optCs,
         image_loader=image_loader,
-        anchor_axis=cfg.anchor.axis,
-        empty_prob=cfg.anchor.empty_prob,
-        full_prob=cfg.anchor.full_prob,
-        sparse_min=cfg.anchor.sparse_min,
-        sparse_max=cfg.anchor.sparse_max,
-        min_gap=cfg.anchor.min_gap,
+        anchor=build_anchor_spec(cfg),
         train_shape=tuple(cfg.data.train_shape),
         in_channels=cfg.data.in_channels,
         batch_size=cfg.dl.batch_size,

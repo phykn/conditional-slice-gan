@@ -10,7 +10,14 @@ def gradient_penalty(
     fake_data: torch.Tensor,  # (B*S, C, H, W) — slice-expanded
     gp_lambda: float = 10.0,
 ) -> torch.Tensor:
-    """WGAN-GP penalty. Fake batch is subsampled to match real batch size."""
+    """WGAN-GP penalty. Fake batch is subsampled to match real batch size.
+
+    With the current trainer `n_real == n_fake` always (real count is ``B * S_axis``
+    and fake is slice-expanded to the same size), so the randperm below is a no-op.
+    The subsample is kept as a defensive path: if callers ever pass asymmetric
+    batches (e.g. slice-expanding across multiple axes), interpolation still requires
+    matching sizes.
+    """
     n_real = real_data.size(0)
     n_fake = fake_data.size(0)
     assert n_real <= n_fake, "fake batch must be at least as large as real batch"

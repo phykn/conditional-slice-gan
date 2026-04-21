@@ -8,6 +8,7 @@ from src.data.image_dataset import ImageDataset
 @pytest.fixture
 def img_dir(tmp_path):
     import cv2
+
     d = tmp_path / "pool"
     d.mkdir()
     rng = np.random.default_rng(0)
@@ -75,6 +76,7 @@ def test_resolve_pools_requires_coverage(img_dir):
 
 def test_rgb_pool(tmp_path):
     import cv2
+
     d = tmp_path / "rgb"
     d.mkdir()
     rng = np.random.default_rng(7)
@@ -93,6 +95,7 @@ def test_rgb_pool(tmp_path):
 
 def test_rejects_small_image(tmp_path):
     import cv2
+
     d = tmp_path / "small"
     d.mkdir()
     cv2.imwrite(str(d / "s.png"), np.zeros((8, 8), dtype=np.uint8))
@@ -108,11 +111,12 @@ def test_rejects_small_image(tmp_path):
 def test_flip_augmentation_varies_output(tmp_path):
     """With crop == image size, only flips can produce varied outputs."""
     import cv2
+
     d = tmp_path / "one"
     d.mkdir()
     img = np.zeros((16, 16), dtype=np.uint8)
-    img[:8, :] = 255   # asymmetric under vertical flip
-    img[:, :8] = 200   # asymmetric under horizontal flip
+    img[:8, :] = 255  # asymmetric under vertical flip
+    img[:, :8] = 200  # asymmetric under horizontal flip
     cv2.imwrite(str(d / "img.png"), img)
 
     # train_shape chosen so axis-0 crop is (16, 16), matching image size.

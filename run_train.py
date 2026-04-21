@@ -16,8 +16,9 @@ from src.builder import (
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/default.yaml")
-    parser.add_argument("--images-dir", default=None,
-                        help="Override data.images.shared.")
+    parser.add_argument(
+        "--images-dir", default=None, help="Override data.images.shared."
+    )
     return parser.parse_args()
 
 

@@ -10,9 +10,6 @@ data:
 anchor:
   axis: 0
   empty_prob: 0.1
-  full_prob: 0.1
-  sparse_min: 1
-  sparse_max: null
   min_gap: 1
 
 dl:

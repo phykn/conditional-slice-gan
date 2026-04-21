@@ -17,57 +17,32 @@ def test_validate_config_ok(tiny_cfg):
 
 def test_validate_config_mismatch(tiny_cfg):
     tiny_cfg.critic.channels = [3, 4, 8, 1]  # mismatch
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError, match="critic.channels"):
         validate_config(tiny_cfg)
 
 
 def test_check_axis_range(tiny_cfg):
     tiny_cfg.anchor.axis = 3
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError, match="anchor.axis"):
         validate_config(tiny_cfg)
 
 
-def test_check_regime_probs(tiny_cfg):
-    tiny_cfg.anchor.empty_prob = 0.6
-    tiny_cfg.anchor.full_prob = 0.6
-    with pytest.raises(AssertionError):
+def test_check_empty_prob_range(tiny_cfg):
+    tiny_cfg.anchor.empty_prob = 1.5
+    with pytest.raises(ValueError, match="empty_prob"):
         validate_config(tiny_cfg)
 
 
 def test_check_train_shape_divisible(tiny_cfg):
     tiny_cfg.data.train_shape = [9, 8, 8]  # not divisible by stride 4
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError, match="divisible"):
         validate_config(tiny_cfg)
 
 
 def test_check_min_gap_positive(tiny_cfg):
     tiny_cfg.anchor.min_gap = 0
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError, match="min_gap"):
         validate_config(tiny_cfg)
-
-
-def test_check_full_prob_requires_gap_one(tiny_cfg):
-    tiny_cfg.anchor.min_gap = 2
-    tiny_cfg.anchor.full_prob = 0.1
-    with pytest.raises(ValueError, match="full_prob"):
-        validate_config(tiny_cfg)
-
-
-def test_check_sparse_max_feasible_with_gap(tiny_cfg):
-    # train_shape[0]=8, so default sparse_max=7. With min_gap=2, need
-    # smax + (smax-1)*(min_gap-1) <= 8 → smax <= 4. sparse_max=7 infeasible.
-    tiny_cfg.anchor.min_gap = 2
-    tiny_cfg.anchor.full_prob = 0.0
-    tiny_cfg.anchor.sparse_max = 7
-    with pytest.raises(ValueError, match="infeasible"):
-        validate_config(tiny_cfg)
-
-
-def test_check_sparse_max_feasible_within_bound(tiny_cfg):
-    tiny_cfg.anchor.min_gap = 2
-    tiny_cfg.anchor.full_prob = 0.0
-    tiny_cfg.anchor.sparse_max = 4
-    validate_config(tiny_cfg)  # must not raise
 
 
 def test_build_generator(tiny_cfg):
@@ -106,7 +81,7 @@ def test_build_trainer(tiny_cfg):
     image_loader = build_image_loader(tiny_cfg)
     trainer = build_trainer(tiny_cfg, g, cs, optG, optCs, image_loader)
     assert trainer.recon_lambda == 10.0
-    assert trainer.min_gap == 1
+    assert trainer.anchor.min_gap == 1
 
 
 def test_validate_rejects_missing_image_pool(tiny_cfg):
