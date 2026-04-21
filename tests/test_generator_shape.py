@@ -1,6 +1,4 @@
 # tests/test_generator_shape.py
-from __future__ import annotations
-
 import pytest
 import torch
 

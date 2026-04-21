@@ -1,6 +1,4 @@
 # src/builder.py
-from __future__ import annotations
-
 from itertools import cycle
 from typing import Iterable, Iterator
 

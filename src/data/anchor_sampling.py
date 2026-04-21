@@ -1,6 +1,4 @@
 # src/data/anchor_sampling.py
-from __future__ import annotations
-
 import random
 
 import torch
@@ -19,7 +17,6 @@ def sample_anchors(
     assert empty_prob >= 0.0 and full_prob >= 0.0
     assert empty_prob + full_prob <= 1.0
 
-    C = sub_volume.shape[0]
     spatial = sub_volume.shape[1:]  # (D, H, W)
     D_axis = spatial[anchor_axis]
 

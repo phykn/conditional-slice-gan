@@ -1,13 +1,10 @@
 # src/training/trainer.py
-from __future__ import annotations
-
 import os
 import random
 from datetime import datetime
 from typing import Iterator
 
 import torch
-import torch.nn.functional as F
 from einops import rearrange
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter

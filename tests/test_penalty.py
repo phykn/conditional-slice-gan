@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import torch
 
 from src.model.critic import Critic2D

@@ -1,6 +1,4 @@
 # tests/test_trainer.py
-from __future__ import annotations
-
 import os
 
 import torch

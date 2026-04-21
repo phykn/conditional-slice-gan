@@ -1,6 +1,4 @@
 # tests/test_run_train_smoke.py
-from __future__ import annotations
-
 import os
 import subprocess
 import sys
