@@ -3,7 +3,6 @@ import pytest
 from src.builder import (
     build_critic,
     build_generator,
-    build_loader,
     build_optimizer,
     build_trainer,
     validate_config,
@@ -51,10 +50,32 @@ def test_build_critic(tiny_cfg):
     assert isinstance(c, Critic2D)
 
 
-def test_build_loader_single(tiny_cfg):
-    loader = build_loader(tiny_cfg)
+def test_build_image_loader(tiny_cfg):
+    from src.builder import build_image_loader
+    from src.data.image_dataset import ImageDataset
+
+    loader = build_image_loader(tiny_cfg)
+    assert isinstance(loader, ImageDataset)
+    batch = loader.sample(axis=0, count=2)
+    assert batch.shape == (2, 1, 8, 8)
+
+
+def test_build_voxel_loader_present(tiny_cfg):
+    from src.builder import build_voxel_loader
+
+    loader = build_voxel_loader(tiny_cfg)
+    assert loader is not None
     batch = next(loader)
     assert batch.shape == (2, 1, 8, 8, 8)
+
+
+def test_build_voxel_loader_absent(tiny_cfg):
+    from src.builder import build_voxel_loader
+
+    tiny_cfg.data.voxel_path = None
+    tiny_cfg.anchor.empty_prob = 1.0
+    tiny_cfg.anchor.full_prob = 0.0
+    assert build_voxel_loader(tiny_cfg) is None
 
 
 def test_build_optimizer(tiny_cfg):

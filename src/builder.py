@@ -8,6 +8,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from .data.dataset import VoxelDataset
+from .data.image_dataset import ImageDataset
 from .model.critic import Critic2D
 from .model.generator import UNet3DGenerator
 from .training.trainer import ConditionalSliceGANTrainer
@@ -66,7 +67,26 @@ def validate_config(cfg: DictConfig) -> None:
             )
 
 
-def build_loader(cfg: DictConfig) -> Iterator:
+def build_image_loader(cfg: DictConfig) -> ImageDataset:
+    from .data.image_dataset import resolve_pools
+
+    images = cfg.data.images
+    pools = resolve_pools(
+        shared=images.shared,
+        axis0=images.axis0,
+        axis1=images.axis1,
+        axis2=images.axis2,
+    )
+    return ImageDataset(
+        pools=pools,
+        train_shape=tuple(cfg.data.train_shape),
+        in_channels=cfg.data.in_channels,
+    )
+
+
+def build_voxel_loader(cfg: DictConfig) -> Iterator | None:
+    if cfg.data.voxel_path is None:
+        return None
     dataset = VoxelDataset(
         voxel_path=cfg.data.voxel_path,
         train_shape=list(cfg.data.train_shape),
