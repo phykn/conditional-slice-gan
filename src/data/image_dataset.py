@@ -3,6 +3,7 @@ import os
 import cv2
 import numpy as np
 import torch
+from imrw import imread
 
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
@@ -21,8 +22,6 @@ def _list_images(directory: str) -> list[str]:
 
 def load_image(path: str, in_channels: int) -> np.ndarray:
     """Load a 2D image and return (C, H, W) float32 in [-1, 1]."""
-    from imrw import imread
-
     img = imread(path)
     if in_channels == 1:
         if img.ndim == 3:
