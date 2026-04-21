@@ -9,7 +9,6 @@ from ..builder import build_generator
 
 class Predictor:
     def __init__(self, run_dir: str, device: str = "cuda") -> None:
-        self.run_dir = run_dir
         self.device = torch.device(device)
         self.cfg = OmegaConf.load(os.path.join(run_dir, "config.yaml"))
         self.train_shape = tuple(self.cfg.data.train_shape)
