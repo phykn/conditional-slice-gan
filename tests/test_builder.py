@@ -86,3 +86,17 @@ def test_validate_accepts_per_axis_images(tiny_cfg, sample_image_dir):
     tiny_cfg.data.images.axis1 = sample_image_dir
     tiny_cfg.data.images.axis2 = sample_image_dir
     validate_config(tiny_cfg)  # must not raise
+
+
+def test_validate_rejects_no_voxel_with_anchors(tiny_cfg):
+    tiny_cfg.data.voxel_path = None
+    tiny_cfg.anchor.empty_prob = 0.0  # conflicts with voxel=None
+    with pytest.raises(ValueError, match="empty_prob"):
+        validate_config(tiny_cfg)
+
+
+def test_validate_accepts_no_voxel_with_empty_prob_one(tiny_cfg):
+    tiny_cfg.data.voxel_path = None
+    tiny_cfg.anchor.empty_prob = 1.0
+    tiny_cfg.anchor.full_prob = 0.0
+    validate_config(tiny_cfg)  # must not raise

@@ -57,6 +57,14 @@ def validate_config(cfg: DictConfig) -> None:
         axis2=images.axis2,
     )
 
+    if cfg.data.voxel_path is None:
+        if cfg.anchor.empty_prob != 1.0:
+            raise ValueError(
+                "data.voxel_path is null; anchor.empty_prob must be 1.0 to "
+                "force the unconditional (K=0) regime. Got "
+                f"empty_prob={cfg.anchor.empty_prob}"
+            )
+
 
 def build_loader(cfg: DictConfig) -> Iterator:
     dataset = VoxelDataset(
