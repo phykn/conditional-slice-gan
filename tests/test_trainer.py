@@ -73,3 +73,15 @@ def test_voxel_absent_path(tiny_cfg):
     losses = t.step(global_step=2)
     assert "critic_fake_score" in losses
     assert losses["recon_loss"] == 0.0
+
+
+def test_critic_real_batch_size(tiny_cfg):
+    """Real 2D batch size equals B * train_shape[axis] for each critic axis."""
+    t = _trainer(tiny_cfg)
+    B = tiny_cfg.dl.batch_size
+    for axis in range(3):
+        real, _sub, _sparse, _mask = t._sample_batch(axis)
+        expected = B * tiny_cfg.data.train_shape[axis]
+        assert real.shape[0] == expected, (
+            f"axis {axis}: real batch size {real.shape[0]} != B * train_shape[axis] = {expected}"
+        )
