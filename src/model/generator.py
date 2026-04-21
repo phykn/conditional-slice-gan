@@ -130,11 +130,3 @@ class UNet3DGenerator(nn.Module):
         if self.output == "tanh":
             return torch.tanh(x)
         return torch.softmax(x, dim=1)
-
-    def sample(
-        self,
-        sparse: torch.Tensor,
-        mask: torch.Tensor,
-        noise: torch.Tensor | None = None,
-    ) -> torch.Tensor:
-        return self(sparse, mask, noise)
