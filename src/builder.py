@@ -8,7 +8,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from .data.dataset import VoxelDataset
-from .data.image_dataset import ImageDataset
+from .data.image_dataset import ImageDataset, resolve_pools
 from .model.critic import Critic2D
 from .model.generator import UNet3DGenerator
 from .training.trainer import ConditionalSliceGANTrainer
@@ -47,8 +47,6 @@ def validate_config(cfg: DictConfig) -> None:
             f"train_shape[{i}]={d} not divisible by total stride {total_stride}"
         )
 
-    from .data.image_dataset import resolve_pools
-
     images = cfg.data.images
     # Raises ValueError listing unresolved axes.
     resolve_pools(
@@ -68,8 +66,6 @@ def validate_config(cfg: DictConfig) -> None:
 
 
 def build_image_loader(cfg: DictConfig) -> ImageDataset:
-    from .data.image_dataset import resolve_pools
-
     images = cfg.data.images
     pools = resolve_pools(
         shared=images.shared,
