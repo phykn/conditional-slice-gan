@@ -179,10 +179,7 @@ class ConditionalSliceGANTrainer:
         scores = [self.netCs[a](_slice_along_axis(fake_3d, a)).mean() for a in range(3)]
         adv = -torch.stack(scores).mean()
 
-        if mask.sum().item() > 0:
-            rec = _recon_loss(fake_3d, sub, mask)
-        else:
-            rec = torch.zeros((), device=fake_3d.device, dtype=fake_3d.dtype)
+        rec = _recon_loss(fake_3d, sub, mask)
 
         loss = adv + self.recon_lambda * rec
         loss.backward()
