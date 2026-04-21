@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 
+import cv2
 import numpy as np
 from omegaconf import OmegaConf
 
@@ -12,6 +13,13 @@ def test_run_train_end_to_end(tmp_path, monkeypatch):
     rng = np.random.default_rng(0)
     np.save(vol_path, rng.integers(0, 256, size=(16, 16, 16), dtype=np.uint8))
 
+    # Build a tiny image directory for the shared pool.
+    img_dir = tmp_path / "images"
+    img_dir.mkdir()
+    for i in range(2):
+        img = rng.integers(0, 256, size=(64, 64), dtype=np.uint8)
+        cv2.imwrite(str(img_dir / f"img_{i}.png"), img)
+
     cfg_path = tmp_path / "config.yaml"
     cfg = {
         "data": {
@@ -19,6 +27,12 @@ def test_run_train_end_to_end(tmp_path, monkeypatch):
             "train_shape": [8, 8, 8],
             "in_channels": 1,
             "steps_per_epoch": 4,
+            "images": {
+                "shared": str(img_dir),
+                "axis0": None,
+                "axis1": None,
+                "axis2": None,
+            },
         },
         "anchor": {
             "axis": 0,

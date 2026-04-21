@@ -3,6 +3,11 @@ data:
   train_shape: [64, 64, 64]
   in_channels: 1
   steps_per_epoch: 512
+  images:
+    shared: "data/images"
+    axis0: null
+    axis1: null
+    axis2: null
 
 anchor:
   axis: 0
