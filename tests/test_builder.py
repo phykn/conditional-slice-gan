@@ -3,7 +3,6 @@ import pytest
 from src.builder import (
     build_critic,
     build_generator,
-    build_loader,
     build_optimizer,
     build_trainer,
     validate_config,
@@ -51,10 +50,32 @@ def test_build_critic(tiny_cfg):
     assert isinstance(c, Critic2D)
 
 
-def test_build_loader_single(tiny_cfg):
-    loader = build_loader(tiny_cfg)
+def test_build_image_loader(tiny_cfg):
+    from src.builder import build_image_loader
+    from src.data.image_dataset import ImageDataset
+
+    loader = build_image_loader(tiny_cfg)
+    assert isinstance(loader, ImageDataset)
+    batch = loader.sample(axis=0, count=2)
+    assert batch.shape == (2, 1, 8, 8)
+
+
+def test_build_voxel_loader_present(tiny_cfg):
+    from src.builder import build_voxel_loader
+
+    loader = build_voxel_loader(tiny_cfg)
+    assert loader is not None
     batch = next(loader)
     assert batch.shape == (2, 1, 8, 8, 8)
+
+
+def test_build_voxel_loader_absent(tiny_cfg):
+    from src.builder import build_voxel_loader
+
+    tiny_cfg.data.voxel_path = None
+    tiny_cfg.anchor.empty_prob = 1.0
+    tiny_cfg.anchor.full_prob = 0.0
+    assert build_voxel_loader(tiny_cfg) is None
 
 
 def test_build_optimizer(tiny_cfg):
@@ -64,10 +85,42 @@ def test_build_optimizer(tiny_cfg):
 
 
 def test_build_trainer(tiny_cfg):
+    from src.builder import build_image_loader, build_voxel_loader
+
     g = build_generator(tiny_cfg)
     cs = [build_critic(tiny_cfg) for _ in range(3)]
     optG = build_optimizer(tiny_cfg, g.parameters())
     optCs = [build_optimizer(tiny_cfg, c.parameters()) for c in cs]
-    loader = build_loader(tiny_cfg)
-    trainer = build_trainer(tiny_cfg, g, cs, optG, optCs, loader)
+    image_loader = build_image_loader(tiny_cfg)
+    voxel_loader = build_voxel_loader(tiny_cfg)
+    trainer = build_trainer(tiny_cfg, g, cs, optG, optCs, image_loader, voxel_loader)
     assert trainer.recon_lambda == 10.0
+
+
+def test_validate_rejects_missing_image_pool(tiny_cfg):
+    tiny_cfg.data.images.shared = None
+    tiny_cfg.data.images.axis1 = None  # axis 1 has no resolution
+    with pytest.raises(ValueError, match="axis"):
+        validate_config(tiny_cfg)
+
+
+def test_validate_accepts_per_axis_images(tiny_cfg, sample_image_dir):
+    tiny_cfg.data.images.shared = None
+    tiny_cfg.data.images.axis0 = sample_image_dir
+    tiny_cfg.data.images.axis1 = sample_image_dir
+    tiny_cfg.data.images.axis2 = sample_image_dir
+    validate_config(tiny_cfg)  # must not raise
+
+
+def test_validate_rejects_no_voxel_with_anchors(tiny_cfg):
+    tiny_cfg.data.voxel_path = None
+    tiny_cfg.anchor.empty_prob = 0.0  # conflicts with voxel=None
+    with pytest.raises(ValueError, match="empty_prob"):
+        validate_config(tiny_cfg)
+
+
+def test_validate_accepts_no_voxel_with_empty_prob_one(tiny_cfg):
+    tiny_cfg.data.voxel_path = None
+    tiny_cfg.anchor.empty_prob = 1.0
+    tiny_cfg.anchor.full_prob = 0.0
+    validate_config(tiny_cfg)  # must not raise

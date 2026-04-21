@@ -12,6 +12,7 @@ from ..data.anchor_sampling import choose_anchor_count, place_anchor_slices
 from ..model.critic import Critic2D
 from ..model.generator import UNet3DGenerator
 from .penalty import gradient_penalty
+from ..data.image_dataset import ImageDataset
 
 
 def _slice_along_axis(volume: torch.Tensor, axis: int) -> torch.Tensor:
@@ -68,12 +69,16 @@ class ConditionalSliceGANTrainer:
         netCs: list[Critic2D],
         optG: Optimizer,
         optCs: list[Optimizer],
-        train_loader: Iterator,
+        image_loader: ImageDataset,
+        voxel_loader: Iterator | None,
         anchor_axis: int,
         empty_prob: float,
         full_prob: float,
         sparse_min: int,
         sparse_max: int | None,
+        train_shape: tuple[int, int, int],
+        in_channels: int,
+        batch_size: int,
         gp_lambda: float = 10.0,
         recon_lambda: float = 10.0,
         gen_freq: int = 5,
@@ -87,12 +92,16 @@ class ConditionalSliceGANTrainer:
         self.netCs = netCs
         self.optG = optG
         self.optCs = optCs
-        self.train_loader = train_loader
+        self.image_loader = image_loader
+        self.voxel_loader = voxel_loader
         self.anchor_axis = anchor_axis
         self.empty_prob = empty_prob
         self.full_prob = full_prob
         self.sparse_min = sparse_min
         self.sparse_max = sparse_max
+        self.train_shape = tuple(train_shape)
+        self.in_channels = in_channels
+        self.batch_size = batch_size
         self.gp_lambda = gp_lambda
         self.recon_lambda = recon_lambda
         self.gen_freq = gen_freq
@@ -105,26 +114,45 @@ class ConditionalSliceGANTrainer:
         os.makedirs(os.path.join(self.save_dir, "weights"), exist_ok=True)
         self.writer = SummaryWriter(os.path.join(self.save_dir, "logs"))
 
-    def _sample_batch(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        sub = next(self.train_loader).float().to(self.device)
-        sparse, mask = _batch_anchor_sample(
-            sub,
-            self.anchor_axis,
-            self.empty_prob,
-            self.full_prob,
-            self.sparse_min,
-            self.sparse_max,
-        )
-        return sub, sparse, mask
+    def _sample_batch(
+        self, axis: int
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        B = self.batch_size
+        C = self.in_channels
+        D, H, W = self.train_shape
 
-    def step_critic(self, axis: int, sub: torch.Tensor, sparse: torch.Tensor, mask: torch.Tensor) -> dict[str, float]:
+        if self.voxel_loader is not None:
+            sub = next(self.voxel_loader).float().to(self.device)
+            sparse, mask = _batch_anchor_sample(
+                sub,
+                self.anchor_axis,
+                self.empty_prob,
+                self.full_prob,
+                self.sparse_min,
+                self.sparse_max,
+            )
+        else:
+            sub = torch.zeros((B, C, D, H, W), device=self.device)
+            sparse = torch.zeros((B, C, D, H, W), device=self.device)
+            mask = torch.zeros((B, 1, D, H, W), device=self.device)
+
+        S_axis = self.train_shape[axis]
+        real_2d = self.image_loader.sample(axis, count=B * S_axis).to(self.device)
+        return real_2d, sub, sparse, mask
+
+    def step_critic(
+        self,
+        axis: int,
+        real: torch.Tensor,
+        sparse: torch.Tensor,
+        mask: torch.Tensor,
+    ) -> dict[str, float]:
         self.netG.train()
         netC = self.netCs[axis]
         optC = self.optCs[axis]
         netC.train()
         optC.zero_grad(set_to_none=True)
 
-        real = _slice_along_axis(sub, axis)
         with torch.no_grad():
             fake_3d = self.netG(sparse, mask)
         fake = _slice_along_axis(fake_3d, axis)
@@ -167,9 +195,9 @@ class ConditionalSliceGANTrainer:
 
     def step(self, global_step: int) -> dict[str, float]:
         axis = global_step % 3
-        sub, sparse, mask = self._sample_batch()
+        real, sub, sparse, mask = self._sample_batch(axis)
 
-        losses = self.step_critic(axis, sub, sparse, mask)
+        losses = self.step_critic(axis, real, sparse, mask)
         for k, v in losses.items():
             self.writer.add_scalar(f"train/{k}", v, global_step)
 

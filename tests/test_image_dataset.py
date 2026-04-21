@@ -1,0 +1,127 @@
+import numpy as np
+import pytest
+import torch
+
+from src.data.image_dataset import ImageDataset
+
+
+@pytest.fixture
+def img_dir(tmp_path):
+    import cv2
+    d = tmp_path / "pool"
+    d.mkdir()
+    rng = np.random.default_rng(0)
+    for i in range(3):
+        img = rng.integers(0, 256, size=(64, 64), dtype=np.uint8)
+        cv2.imwrite(str(d / f"img_{i}.png"), img)
+    return str(d)
+
+
+def test_axis0_crop_shape(img_dir):
+    ds = ImageDataset(
+        pools={0: img_dir, 1: img_dir, 2: img_dir},
+        train_shape=(8, 16, 24),
+        in_channels=1,
+    )
+    batch = ds.sample(axis=0, count=5)
+    assert isinstance(batch, torch.Tensor)
+    assert batch.shape == (5, 1, 16, 24)
+    assert batch.dtype == torch.float32
+    assert batch.min() >= -1.0 and batch.max() <= 1.0
+
+
+def test_axis1_crop_shape(img_dir):
+    ds = ImageDataset(
+        pools={0: img_dir, 1: img_dir, 2: img_dir},
+        train_shape=(8, 16, 24),
+        in_channels=1,
+    )
+    batch = ds.sample(axis=1, count=3)
+    assert batch.shape == (3, 1, 8, 24)
+
+
+def test_axis2_crop_shape(img_dir):
+    ds = ImageDataset(
+        pools={0: img_dir, 1: img_dir, 2: img_dir},
+        train_shape=(8, 16, 24),
+        in_channels=1,
+    )
+    batch = ds.sample(axis=2, count=3)
+    assert batch.shape == (3, 1, 8, 16)
+
+
+def test_resolve_pools_shared_only(img_dir):
+    from src.data.image_dataset import resolve_pools
+
+    pools = resolve_pools(shared=img_dir, axis0=None, axis1=None, axis2=None)
+    assert pools == {0: img_dir, 1: img_dir, 2: img_dir}
+
+
+def test_resolve_pools_axis_override(tmp_path, img_dir):
+    from src.data.image_dataset import resolve_pools
+
+    other = tmp_path / "other"
+    other.mkdir()
+    pools = resolve_pools(shared=img_dir, axis0=str(other), axis1=None, axis2=None)
+    assert pools == {0: str(other), 1: img_dir, 2: img_dir}
+
+
+def test_resolve_pools_requires_coverage(img_dir):
+    from src.data.image_dataset import resolve_pools
+
+    with pytest.raises(ValueError, match="axis 1"):
+        resolve_pools(shared=None, axis0=img_dir, axis1=None, axis2=img_dir)
+
+
+def test_rgb_pool(tmp_path):
+    import cv2
+    d = tmp_path / "rgb"
+    d.mkdir()
+    rng = np.random.default_rng(7)
+    for i in range(2):
+        img = rng.integers(0, 256, size=(64, 64, 3), dtype=np.uint8)
+        cv2.imwrite(str(d / f"img_{i}.png"), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+
+    ds = ImageDataset(
+        pools={0: str(d), 1: str(d), 2: str(d)},
+        train_shape=(8, 16, 16),
+        in_channels=3,
+    )
+    batch = ds.sample(axis=0, count=2)
+    assert batch.shape == (2, 3, 16, 16)
+
+
+def test_rejects_small_image(tmp_path):
+    import cv2
+    d = tmp_path / "small"
+    d.mkdir()
+    cv2.imwrite(str(d / "s.png"), np.zeros((8, 8), dtype=np.uint8))
+
+    with pytest.raises(ValueError, match="smaller than"):
+        ImageDataset(
+            pools={0: str(d), 1: str(d), 2: str(d)},
+            train_shape=(8, 16, 16),
+            in_channels=1,
+        )
+
+
+def test_flip_augmentation_varies_output(tmp_path):
+    """With crop == image size, only flips can produce varied outputs."""
+    import cv2
+    d = tmp_path / "one"
+    d.mkdir()
+    img = np.zeros((16, 16), dtype=np.uint8)
+    img[:8, :] = 255   # asymmetric under vertical flip
+    img[:, :8] = 200   # asymmetric under horizontal flip
+    cv2.imwrite(str(d / "img.png"), img)
+
+    # train_shape chosen so axis-0 crop is (16, 16), matching image size.
+    ds = ImageDataset(
+        pools={0: str(d), 1: str(d), 2: str(d)},
+        train_shape=(8, 16, 16),
+        in_channels=1,
+    )
+    np.random.seed(0)
+    tensors = [ds.sample(axis=0, count=1)[0] for _ in range(20)]
+    unique = {t.numpy().tobytes() for t in tensors}
+    assert len(unique) >= 2, "flips should produce varied outputs"

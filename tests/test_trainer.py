@@ -5,19 +5,21 @@ import torch
 from src.builder import (
     build_critic,
     build_generator,
-    build_loader,
     build_optimizer,
     build_trainer,
 )
 
 
 def _trainer(tiny_cfg):
+    from src.builder import build_image_loader, build_voxel_loader
+
     netG = build_generator(tiny_cfg)
     netCs = [build_critic(tiny_cfg) for _ in range(3)]
     optG = build_optimizer(tiny_cfg, netG.parameters())
     optCs = [build_optimizer(tiny_cfg, c.parameters()) for c in netCs]
-    loader = build_loader(tiny_cfg)
-    return build_trainer(tiny_cfg, netG, netCs, optG, optCs, loader)
+    image_loader = build_image_loader(tiny_cfg)
+    voxel_loader = build_voxel_loader(tiny_cfg)
+    return build_trainer(tiny_cfg, netG, netCs, optG, optCs, image_loader, voxel_loader)
 
 
 def test_step_returns_losses(tiny_cfg):
@@ -61,3 +63,25 @@ def test_train_runs_and_saves(tiny_cfg):
     assert os.path.exists(os.path.join(w, "generator.pth"))
     for i in range(3):
         assert os.path.exists(os.path.join(w, f"critic_{i}.pth"))
+
+
+def test_voxel_absent_path(tiny_cfg):
+    tiny_cfg.data.voxel_path = None
+    tiny_cfg.anchor.empty_prob = 1.0
+    tiny_cfg.anchor.full_prob = 0.0
+    t = _trainer(tiny_cfg)
+    losses = t.step(global_step=2)
+    assert "critic_fake_score" in losses
+    assert losses["recon_loss"] == 0.0
+
+
+def test_critic_real_batch_size(tiny_cfg):
+    """Real 2D batch size equals B * train_shape[axis] for each critic axis."""
+    t = _trainer(tiny_cfg)
+    B = tiny_cfg.dl.batch_size
+    for axis in range(3):
+        real, _sub, _sparse, _mask = t._sample_batch(axis)
+        expected = B * tiny_cfg.data.train_shape[axis]
+        assert real.shape[0] == expected, (
+            f"axis {axis}: real batch size {real.shape[0]} != B * train_shape[axis] = {expected}"
+        )

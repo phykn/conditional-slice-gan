@@ -23,17 +23,17 @@ Outputs land in `run/<YYYYMMDD_HHMMSS>/`: TensorBoard events in `logs/`, model w
 
 ## Architecture
 
-This is a **conditional Slice-GAN**: a 3D U-Net generator is supervised by **three independent 2D critics** (one per spatial axis). The generator consumes `(sparse, mask)` and produces a 3D volume; critics judge 2D slices along axes 0/1/2. Anchor images are positioned by being physically placed in the sparse volume at their target index — no separate index encoding. A single checkpoint handles three regimes: `K = 0` (unconditional), `K ∈ [1, D−1]` (sparse fill), `K = D` (identity).
+This is a **conditional Slice-GAN**: a 3D U-Net generator is supervised by **three independent 2D critics** (one per spatial axis). The generator consumes `(sparse, mask)` and produces a 3D volume; critics judge 2D slices along axes 0/1/2. Anchor images are positioned by being physically placed in the sparse volume at their target index — no separate index encoding. A single checkpoint handles three regimes: `K = 0` (unconditional), `K ∈ [1, D−1]` (sparse fill), `K = D` (identity). Critic real 2D slices now come from per-axis image pools (or a shared fallback), not from the 3D volume. The 3D volume is optional — when absent, training is unconditional (K=0 only).
 
 Data flow per training step (`src/training/trainer.py`):
-1. A sub-volume is drawn from `VoxelDataset`.
-2. `_batch_anchor_sample` picks a regime (empty / full / sparse) **once per batch** and builds `(sparse, mask)` for every sample.
+1. **Critic real data**: drawn per-axis from `ImageDataset.sample(axis, count=B*S_axis)` — each axis has its own 2D image pool, with an optional shared fallback.
+2. **Anchor source**: `VoxelDataset` (optional) provides sub-volumes; `_batch_anchor_sample` picks a regime (empty / full / sparse) **once per batch** and builds `(sparse, mask)` for every sample via `place_anchor_slices`. When `VoxelDataset` is absent, `sparse`/`mask` are zero tensors and `K=0` is forced.
 3. `axis = global_step % 3` selects the critic to update.
 4. `netG(sparse, mask)` emits `(B, C, D, H, W)`; `_slice_along_axis` flattens to 2D slices `(B*S, C, H, W)` via einops.
 5. The selected critic is trained with WGAN-GP loss (`fake_score - real_score + gp`); `src/training/penalty.py::gradient_penalty` computes GP after subsampling fake slices to match the real batch size.
-6. Every `gen_freq` steps the generator is updated against the mean of all three critics' fake scores plus `recon_lambda × L1(fake, sub)` at mask positions. When `K = 0` (empty regime), the recon term is zero.
+6. Every `gen_freq` steps the generator is updated against the mean of all three critics' fake scores plus `recon_lambda × L1(fake, sub)` at mask positions. When `K = 0` (empty regime) or voxel is absent, the recon term is zero.
 
-A **single** `DataLoader` (sub-volumes) feeds all three axes — not three per-axis loaders — since 2D slices for each axis are derived from the same sub-volume. The loader is wrapped in `itertools.cycle` so `next(loader)` is infinite. `VoxelDataset.__len__` is driven by `cfg.data.steps_per_epoch`.
+Two independent sources feed the trainer each step: `ImageDataset.sample(axis, count)` for real 2D slices (per-axis pools, optional shared fallback), and an optional `itertools.cycle(DataLoader(VoxelDataset))` for 3D sub-volumes (anchor source only). `VoxelDataset.__len__` is still driven by `cfg.data.steps_per_epoch`.
 
 ### Config wiring
 
@@ -44,6 +44,8 @@ Everything is composed by explicit `build_*` functions in `src/builder.py` drive
 - `len(cfg.generator.enc_channels) == len(cfg.generator.dec_channels)`.
 - `cfg.anchor.axis ∈ {0, 1, 2}`; `empty_prob + full_prob ≤ 1`; sparse range valid.
 - `cfg.data.train_shape` divisible by total stride (`2 ** len(enc_channels)`).
+- `cfg.data.images` must resolve to a per-axis pool for each of 0/1/2 (via `data.images.shared` fallback or per-axis `axis0`/`axis1`/`axis2` overrides).
+- When `cfg.data.voxel_path` is null, `cfg.anchor.empty_prob` must be 1.0 (forces unconditional regime).
 
 RGB is enabled by setting `data.in_channels` and `critic.channels[0]` to `3` (encoder input = `3 + 1 mask = 4`, projected in by the first encoder block).
 

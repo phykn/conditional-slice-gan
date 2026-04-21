@@ -8,6 +8,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from .data.dataset import VoxelDataset
+from .data.image_dataset import ImageDataset
 from .model.critic import Critic2D
 from .model.generator import UNet3DGenerator
 from .training.trainer import ConditionalSliceGANTrainer
@@ -46,8 +47,46 @@ def validate_config(cfg: DictConfig) -> None:
             f"train_shape[{i}]={d} not divisible by total stride {total_stride}"
         )
 
+    from .data.image_dataset import resolve_pools
 
-def build_loader(cfg: DictConfig) -> Iterator:
+    images = cfg.data.images
+    # Raises ValueError listing unresolved axes.
+    resolve_pools(
+        shared=images.shared,
+        axis0=images.axis0,
+        axis1=images.axis1,
+        axis2=images.axis2,
+    )
+
+    if cfg.data.voxel_path is None:
+        if cfg.anchor.empty_prob != 1.0:
+            raise ValueError(
+                "data.voxel_path is null; anchor.empty_prob must be 1.0 to "
+                "force the unconditional (K=0) regime. Got "
+                f"empty_prob={cfg.anchor.empty_prob}"
+            )
+
+
+def build_image_loader(cfg: DictConfig) -> ImageDataset:
+    from .data.image_dataset import resolve_pools
+
+    images = cfg.data.images
+    pools = resolve_pools(
+        shared=images.shared,
+        axis0=images.axis0,
+        axis1=images.axis1,
+        axis2=images.axis2,
+    )
+    return ImageDataset(
+        pools=pools,
+        train_shape=tuple(cfg.data.train_shape),
+        in_channels=cfg.data.in_channels,
+    )
+
+
+def build_voxel_loader(cfg: DictConfig) -> Iterator | None:
+    if cfg.data.voxel_path is None:
+        return None
     dataset = VoxelDataset(
         voxel_path=cfg.data.voxel_path,
         train_shape=list(cfg.data.train_shape),
@@ -98,19 +137,24 @@ def build_trainer(
     netCs: list[Critic2D],
     optG: Optimizer,
     optCs: list[Optimizer],
-    train_loader: Iterator,
+    image_loader: ImageDataset,
+    voxel_loader: Iterator | None,
 ) -> ConditionalSliceGANTrainer:
     return ConditionalSliceGANTrainer(
         netG=netG,
         netCs=netCs,
         optG=optG,
         optCs=optCs,
-        train_loader=train_loader,
+        image_loader=image_loader,
+        voxel_loader=voxel_loader,
         anchor_axis=cfg.anchor.axis,
         empty_prob=cfg.anchor.empty_prob,
         full_prob=cfg.anchor.full_prob,
         sparse_min=cfg.anchor.sparse_min,
         sparse_max=cfg.anchor.sparse_max,
+        train_shape=tuple(cfg.data.train_shape),
+        in_channels=cfg.data.in_channels,
+        batch_size=cfg.dl.batch_size,
         gp_lambda=cfg.trainer.gp_lambda,
         recon_lambda=cfg.trainer.recon_lambda,
         gen_freq=cfg.trainer.gen_freq,
