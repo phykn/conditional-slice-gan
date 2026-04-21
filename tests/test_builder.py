@@ -85,12 +85,15 @@ def test_build_optimizer(tiny_cfg):
 
 
 def test_build_trainer(tiny_cfg):
+    from src.builder import build_image_loader, build_voxel_loader
+
     g = build_generator(tiny_cfg)
     cs = [build_critic(tiny_cfg) for _ in range(3)]
     optG = build_optimizer(tiny_cfg, g.parameters())
     optCs = [build_optimizer(tiny_cfg, c.parameters()) for c in cs]
-    loader = build_loader(tiny_cfg)
-    trainer = build_trainer(tiny_cfg, g, cs, optG, optCs, loader)
+    image_loader = build_image_loader(tiny_cfg)
+    voxel_loader = build_voxel_loader(tiny_cfg)
+    trainer = build_trainer(tiny_cfg, g, cs, optG, optCs, image_loader, voxel_loader)
     assert trainer.recon_lambda == 10.0
 
 

@@ -5,19 +5,21 @@ import torch
 from src.builder import (
     build_critic,
     build_generator,
-    build_loader,
     build_optimizer,
     build_trainer,
 )
 
 
 def _trainer(tiny_cfg):
+    from src.builder import build_image_loader, build_voxel_loader
+
     netG = build_generator(tiny_cfg)
     netCs = [build_critic(tiny_cfg) for _ in range(3)]
     optG = build_optimizer(tiny_cfg, netG.parameters())
     optCs = [build_optimizer(tiny_cfg, c.parameters()) for c in netCs]
-    loader = build_loader(tiny_cfg)
-    return build_trainer(tiny_cfg, netG, netCs, optG, optCs, loader)
+    image_loader = build_image_loader(tiny_cfg)
+    voxel_loader = build_voxel_loader(tiny_cfg)
+    return build_trainer(tiny_cfg, netG, netCs, optG, optCs, image_loader, voxel_loader)
 
 
 def test_step_returns_losses(tiny_cfg):
