@@ -71,3 +71,18 @@ def test_build_trainer(tiny_cfg):
     loader = build_loader(tiny_cfg)
     trainer = build_trainer(tiny_cfg, g, cs, optG, optCs, loader)
     assert trainer.recon_lambda == 10.0
+
+
+def test_validate_rejects_missing_image_pool(tiny_cfg):
+    tiny_cfg.data.images.shared = None
+    tiny_cfg.data.images.axis1 = None  # axis 1 has no resolution
+    with pytest.raises(ValueError, match="axis"):
+        validate_config(tiny_cfg)
+
+
+def test_validate_accepts_per_axis_images(tiny_cfg, sample_image_dir):
+    tiny_cfg.data.images.shared = None
+    tiny_cfg.data.images.axis0 = sample_image_dir
+    tiny_cfg.data.images.axis1 = sample_image_dir
+    tiny_cfg.data.images.axis2 = sample_image_dir
+    validate_config(tiny_cfg)  # must not raise
