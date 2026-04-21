@@ -3,15 +3,10 @@ import os
 import numpy as np
 from omegaconf import OmegaConf
 
-from ..data.image_dataset import load_image as load_anchor_image
-
 
 def load_anchor_spec(path: str) -> dict:
     spec = OmegaConf.load(path)
     return OmegaConf.to_container(spec, resolve=True)  # type: ignore[return-value]
-
-
-__all__ = ["load_anchor_image", "load_anchor_spec", "save_volume"]
 
 
 def save_volume(path: str, volume: np.ndarray) -> None:

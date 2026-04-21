@@ -1,6 +1,7 @@
 import argparse
 
-from src.inference.io import load_anchor_image, load_anchor_spec, save_volume
+from src.data.image_dataset import load_image
+from src.inference.io import load_anchor_spec, save_volume
 from src.inference.predictor import Predictor
 
 
@@ -26,7 +27,7 @@ def main() -> None:
 
     predictor = Predictor(run_dir=args.run_dir, device=args.device)
     anchor_images = [
-        load_anchor_image(a["path"], predictor.in_channels) for a in anchor_entries
+        load_image(a["path"], predictor.in_channels) for a in anchor_entries
     ]
     out = predictor.predict(
         anchor_images=anchor_images,
