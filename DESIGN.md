@@ -107,6 +107,28 @@
 
 ---
 
+## VI. 미래 확장 — diffusion 백본 전환
+
+이 설계의 핵심 장점은 **조건부 메커니즘이 생성기 종류와 독립적**이라는 점. 품질 개선이 필요할 때 백본만 교체할 수 있도록 구조를 유지.
+
+### 1. 유지되는 것 (재사용)
+- **데이터 파이프라인**: 2D 풀 + 조건 합성 로직 (`place_anchor_slices`, mask 채널).
+- **조건화 API**: `(sparse, mask)` → 3D 출력 인터페이스.
+- **config 체계**: `anchor.axis`, `min_gap`, 조건 개수 분포 등.
+
+### 2. 교체되는 것
+- `UNet3DGenerator` → `ConditionalDiffusionUNet3D`.
+- critic 제거 가능 (diffusion이 분포 학습을 내재).
+- recon loss는 **denoising loss로 흡수**되거나 classifier-free guidance로 대체.
+
+### 3. 전환이 쉬운 이유
+- 조건 입력 형식이 동일 → generator 내부만 바꾸면 됨.
+- 평가 스크립트, 추론 CLI, 체크포인트 관리 등 주변 인프라는 그대로.
+
+> **한 줄**: "지금은 GAN으로 빨리 검증, 나중에 diffusion으로 품질 업그레이드."
+
+---
+
 ## 부록: 책임 분담 요약
 
 **학습 신호별**
