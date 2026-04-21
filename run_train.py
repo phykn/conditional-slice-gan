@@ -9,7 +9,7 @@ from src.builder import (
     build_loader,
     build_optimizer,
     build_trainer,
-    check_channel_consistency,
+    validate_config,
 )
 
 
@@ -25,7 +25,7 @@ def main() -> None:
     cfg = OmegaConf.load(args.config)
     if args.voxel_path is not None:
         cfg.data.voxel_path = args.voxel_path
-    check_channel_consistency(cfg)
+    validate_config(cfg)
 
     device = torch.device(cfg.device)
     netG = build_generator(cfg).to(device)

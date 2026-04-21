@@ -13,7 +13,7 @@ from .model.generator import UNet3DGenerator
 from .training.trainer import ConditionalSliceGANTrainer
 
 
-def check_channel_consistency(cfg: DictConfig) -> None:
+def validate_config(cfg: DictConfig) -> None:
     c = cfg.data.in_channels
     c_in = cfg.critic.channels[0]
 

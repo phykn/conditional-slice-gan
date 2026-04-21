@@ -6,39 +6,39 @@ from src.builder import (
     build_loader,
     build_optimizer,
     build_trainer,
-    check_channel_consistency,
+    validate_config,
 )
 from src.model.generator import UNet3DGenerator
 from src.model.critic import Critic2D
 
 
-def test_check_channel_consistency_ok(tiny_cfg):
-    check_channel_consistency(tiny_cfg)  # should not raise
+def test_validate_config_ok(tiny_cfg):
+    validate_config(tiny_cfg)  # should not raise
 
 
-def test_check_channel_consistency_mismatch(tiny_cfg):
+def test_validate_config_mismatch(tiny_cfg):
     tiny_cfg.critic.channels = [3, 4, 8, 1]  # mismatch
     with pytest.raises(AssertionError):
-        check_channel_consistency(tiny_cfg)
+        validate_config(tiny_cfg)
 
 
 def test_check_axis_range(tiny_cfg):
     tiny_cfg.anchor.axis = 3
     with pytest.raises(AssertionError):
-        check_channel_consistency(tiny_cfg)
+        validate_config(tiny_cfg)
 
 
 def test_check_regime_probs(tiny_cfg):
     tiny_cfg.anchor.empty_prob = 0.6
     tiny_cfg.anchor.full_prob = 0.6
     with pytest.raises(AssertionError):
-        check_channel_consistency(tiny_cfg)
+        validate_config(tiny_cfg)
 
 
 def test_check_train_shape_divisible(tiny_cfg):
     tiny_cfg.data.train_shape = [9, 8, 8]  # not divisible by stride 4
     with pytest.raises(AssertionError):
-        check_channel_consistency(tiny_cfg)
+        validate_config(tiny_cfg)
 
 
 def test_build_generator(tiny_cfg):

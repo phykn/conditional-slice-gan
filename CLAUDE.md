@@ -39,7 +39,7 @@ A **single** `DataLoader` (sub-volumes) feeds all three axes — not three per-a
 
 Everything is composed by explicit `build_*` functions in `src/builder.py` driven by `src/config/default.yaml`. There is no Hydra `instantiate`: swapping the generator or critic class means editing the builder, not the YAML.
 
-`check_channel_consistency(cfg)` asserts at startup:
+`validate_config(cfg)` asserts at startup:
 - `cfg.data.in_channels == cfg.critic.channels[0]` (generator output channels are projected via an internal 1×1 Conv3d, so `dec_channels[-1]` is a feature width, not image channels).
 - `len(cfg.generator.enc_channels) == len(cfg.generator.dec_channels)`.
 - `cfg.anchor.axis ∈ {0, 1, 2}`; `empty_prob + full_prob ≤ 1`; sparse range valid.

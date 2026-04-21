@@ -97,7 +97,7 @@ During training we mix the three regimes (default: empty 10% / full 10% / sparse
 ## What You Get
 
 - **Single 3D dataset → 3D volume generator**: one voxel dataset trains a generator that produces `(B, C, X, Y, Z)` volumes; each axis is critiqued independently by a 2D critic that sees slices along that axis.
-- **Grayscale and RGB** supported via `data.in_channels` (1 or 3), enforced end-to-end by `check_channel_consistency(cfg)`.
+- **Grayscale and RGB** supported via `data.in_channels` (1 or 3), enforced end-to-end by `validate_config(cfg)`.
 - **WGAN-GP** with random fake-slice subsampling in `src/training/penalty.py::gradient_penalty`.
 - **Anchor conditioning** via sparse volume + binary mask, with L1 reconstruction loss at anchor positions (no inference-time overwrite).
 - **Unified regime handling**: the same model covers unconditional, sparse-conditional, and identity regimes.
@@ -147,7 +147,7 @@ Scalars logged under `train/`: `critic_real_score`, `critic_fake_score`, `wass_d
 - `generator.channels` is a **node list** of encoder-path channels: `channels[0]` must equal `data.in_channels + 1` (sparse volume + mask); `channels[-1]` is the bottleneck width. The decoder is a mirror image.
 - Final output channels equal `data.in_channels`.
 - `critic.channels` is a node list: `channels[0]` must equal `data.in_channels`; `channels[-1]` is 1 (scalar score).
-- `check_channel_consistency(cfg)` runs at startup and refuses to proceed on mismatch.
+- `validate_config(cfg)` runs at startup and refuses to proceed on mismatch.
 
 ### Switching to RGB
 
