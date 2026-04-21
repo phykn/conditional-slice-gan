@@ -71,3 +71,35 @@ def test_resolve_pools_requires_coverage(img_dir):
 
     with pytest.raises(ValueError, match="axis 1"):
         resolve_pools(shared=None, axis0=img_dir, axis1=None, axis2=img_dir)
+
+
+def test_rgb_pool(tmp_path):
+    import cv2
+    d = tmp_path / "rgb"
+    d.mkdir()
+    rng = np.random.default_rng(7)
+    for i in range(2):
+        img = rng.integers(0, 256, size=(64, 64, 3), dtype=np.uint8)
+        cv2.imwrite(str(d / f"img_{i}.png"), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+
+    ds = ImageDataset(
+        pools={0: str(d), 1: str(d), 2: str(d)},
+        train_shape=(8, 16, 16),
+        in_channels=3,
+    )
+    batch = ds.sample(axis=0, count=2)
+    assert batch.shape == (2, 3, 16, 16)
+
+
+def test_rejects_small_image(tmp_path):
+    import cv2
+    d = tmp_path / "small"
+    d.mkdir()
+    cv2.imwrite(str(d / "s.png"), np.zeros((8, 8), dtype=np.uint8))
+
+    with pytest.raises(ValueError, match="smaller than"):
+        ImageDataset(
+            pools={0: str(d), 1: str(d), 2: str(d)},
+            train_shape=(8, 16, 16),
+            in_channels=1,
+        )
