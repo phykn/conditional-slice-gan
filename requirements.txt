@@ -3,7 +3,6 @@ torch
 torchvision
 omegaconf
 einops
-albumentations
 opencv-python
 imrw
 tensorboard
