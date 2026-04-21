@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from omegaconf import OmegaConf
 
-from ..model.generator import UNet3DGenerator
+from ..builder import build_generator
 
 
 class Predictor:
@@ -19,13 +19,7 @@ class Predictor:
         self.anchor_axis = int(self.cfg.anchor.axis)
         self.in_channels = int(self.cfg.data.in_channels)
 
-        self.netG = UNet3DGenerator(
-            in_channels=self.in_channels,
-            enc_channels=list(self.cfg.generator.enc_channels),
-            dec_channels=list(self.cfg.generator.dec_channels),
-            noise_channels=self.cfg.generator.noise_channels,
-            output=self.cfg.generator.output,
-        ).to(self.device)
+        self.netG = build_generator(self.cfg).to(self.device)
         state = torch.load(
             os.path.join(run_dir, "weights", "generator.pth"),
             map_location=self.device,
