@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import random
 from datetime import datetime
 from typing import Iterator
 
@@ -35,14 +36,13 @@ def _batch_anchor_sample(
     full_prob: float,
     sparse_min: int,
     sparse_max: int | None,
-) -> tuple[torch.Tensor, torch.Tensor, list[list[int]], list[list[torch.Tensor]]]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Apply sample_anchors independently to each sample in the batch.
     Regime (empty/full/sparse) is drawn *once* per batch; K within sparse regime
     is identical across the batch but indices differ per sample."""
     B = sub.shape[0]
     D_axis = sub.shape[2 + anchor_axis]
 
-    import random
     r = random.random()
     if r < empty_prob:
         effective_empty, effective_full = 1.0, 0.0
@@ -58,11 +58,9 @@ def _batch_anchor_sample(
 
     sparses: list[torch.Tensor] = []
     masks: list[torch.Tensor] = []
-    idx_list: list[list[int]] = []
-    imgs_list: list[list[torch.Tensor]] = []
 
     for i in range(B):
-        sp, mk, idx, imgs = sample_anchors(
+        sp, mk, _, _ = sample_anchors(
             sub[i],
             anchor_axis=anchor_axis,
             empty_prob=effective_empty,
@@ -72,10 +70,8 @@ def _batch_anchor_sample(
         )
         sparses.append(sp)
         masks.append(mk)
-        idx_list.append(idx)
-        imgs_list.append(imgs)
 
-    return torch.stack(sparses), torch.stack(masks), idx_list, imgs_list
+    return torch.stack(sparses), torch.stack(masks)
 
 
 def _recon_loss(
@@ -137,7 +133,7 @@ class ConditionalSliceGANTrainer:
 
     def _sample_batch(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         sub = next(self.train_loader).float().to(self.device)
-        sparse, mask, _, _ = _batch_anchor_sample(
+        sparse, mask = _batch_anchor_sample(
             sub,
             self.anchor_axis,
             self.empty_prob,
