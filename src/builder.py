@@ -48,15 +48,14 @@ def validate_config(cfg: DictConfig) -> None:
 
     from .data.image_dataset import resolve_pools
 
-    images = cfg.data.get("images")
-    if images is not None:
-        # Raises ValueError listing unresolved axes.
-        resolve_pools(
-            shared=images.shared,
-            axis0=images.axis0,
-            axis1=images.axis1,
-            axis2=images.axis2,
-        )
+    images = cfg.data.images
+    # Raises ValueError listing unresolved axes.
+    resolve_pools(
+        shared=images.shared,
+        axis0=images.axis0,
+        axis1=images.axis1,
+        axis2=images.axis2,
+    )
 
 
 def build_loader(cfg: DictConfig) -> Iterator:
