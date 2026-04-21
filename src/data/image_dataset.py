@@ -19,7 +19,7 @@ def _list_images(directory: str) -> list[str]:
     return paths
 
 
-def _load_image(path: str, in_channels: int) -> np.ndarray:
+def load_image(path: str, in_channels: int) -> np.ndarray:
     """Load a 2D image and return (C, H, W) float32 in [-1, 1]."""
     from imrw import imread
 
@@ -65,7 +65,7 @@ class ImageDataset:
         self._images: dict[int, list[np.ndarray]] = {}
         for a, directory in pools.items():
             paths = _list_images(directory)
-            loaded = [_load_image(p, in_channels) for p in paths]
+            loaded = [load_image(p, in_channels) for p in paths]
             _validate_pool_sizes(a, self.train_shape, loaded, paths)
             self._images[a] = loaded
 
