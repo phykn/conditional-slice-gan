@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from src.data.dataset import VoxelDataset
+from src.data.voxel_dataset import VoxelDataset
 
 
 @pytest.fixture

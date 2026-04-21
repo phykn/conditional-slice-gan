@@ -7,7 +7,7 @@ from torch.nn import Parameter
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from .data.dataset import VoxelDataset
+from .data.voxel_dataset import VoxelDataset
 from .data.image_dataset import ImageDataset, resolve_pools
 from .model.critic import Critic2D
 from .model.generator import UNet3DGenerator

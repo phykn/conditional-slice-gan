@@ -5,6 +5,7 @@ omegaconf
 einops
 opencv-python
 imrw
+sdimg
 tensorboard
 tqdm
 pytest

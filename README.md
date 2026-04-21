@@ -115,7 +115,7 @@ During training we mix the three regimes (default: empty 10% / full 10% / sparse
 
 2. Place a training volume at the path referenced by `data.volume_path` (supports `.npy` and `.tif`/`.tiff`).
 
-3. Review `src/config/default.yaml`:
+3. Review `configs/default.yaml`:
     - `data` — `volume_path`, `sub_size`, `in_channels`, `steps_per_epoch`
     - `anchor` — `axis`, `empty_prob`, `full_prob`, `sparse_min`, `sparse_max`
     - `generator` / `critic` — architecture nodes, kernels, strides, paddings
@@ -126,7 +126,7 @@ During training we mix the three regimes (default: empty 10% / full 10% / sparse
 4. Train:
     ```bash
     python run_train.py
-    python run_train.py --config src/config/default.yaml --volume-path volumes/foo.npy
+    python run_train.py --config configs/default.yaml --volume-path volumes/foo.npy
     ```
 
 5. Predict:
@@ -170,11 +170,11 @@ conditional-slice-gan/
 ├── run_train.py
 ├── run_predict.py
 ├── requirements.txt
+├── configs/default.yaml
 ├── src/
 │   ├── builder.py                 # composition root
-│   ├── config/default.yaml
 │   ├── data/
-│   │   ├── dataset.py             # VoxelDataset
+│   │   ├── voxel_dataset.py       # VoxelDataset
 │   │   └── anchor_sampling.py     # three-regime anchor sampler
 │   ├── model/
 │   │   ├── generator.py           # UNet3DGenerator

@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Training entry point:
 ```bash
-python run_train.py                                                 # uses src/config/default.yaml
-python run_train.py --config src/config/default.yaml --voxel-path data/foo.npy
+python run_train.py                                                 # uses configs/default.yaml
+python run_train.py --config configs/default.yaml --voxel-path data/foo.npy
 ```
 
 Prediction entry point:
@@ -37,7 +37,7 @@ Two independent sources feed the trainer each step: `ImageDataset.sample(axis, c
 
 ### Config wiring
 
-Everything is composed by explicit `build_*` functions in `src/builder.py` driven by `src/config/default.yaml`. There is no Hydra `instantiate`: swapping the generator or critic class means editing the builder, not the YAML.
+Everything is composed by explicit `build_*` functions in `src/builder.py` driven by `configs/default.yaml`. There is no Hydra `instantiate`: swapping the generator or critic class means editing the builder, not the YAML.
 
 `validate_config(cfg)` asserts at startup:
 - `cfg.data.in_channels == cfg.critic.channels[0]` (generator output channels are projected via an internal 1×1 Conv3d, so `dec_channels[-1]` is a feature width, not image channels).

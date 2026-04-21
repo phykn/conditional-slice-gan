@@ -1,9 +1,9 @@
 import os
 
-import cv2
 import numpy as np
 import torch
 from imrw import imread
+from sdimg.image import to_gray, to_rgb
 
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
@@ -25,11 +25,11 @@ def load_image(path: str, in_channels: int) -> np.ndarray:
     img = imread(path)
     if in_channels == 1:
         if img.ndim == 3:
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            img = to_gray(img)
         img = img[None, :, :]
     elif in_channels == 3:
         if img.ndim == 2:
-            img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+            img = to_rgb(img)
         img = np.transpose(img, (2, 0, 1))
     else:
         raise ValueError(f"in_channels must be 1 or 3; got {in_channels}")
