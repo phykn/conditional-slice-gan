@@ -63,3 +63,13 @@ def test_train_runs_and_saves(tiny_cfg):
     assert os.path.exists(os.path.join(w, "generator.pth"))
     for i in range(3):
         assert os.path.exists(os.path.join(w, f"critic_{i}.pth"))
+
+
+def test_voxel_absent_path(tiny_cfg):
+    tiny_cfg.data.voxel_path = None
+    tiny_cfg.anchor.empty_prob = 1.0
+    tiny_cfg.anchor.full_prob = 0.0
+    t = _trainer(tiny_cfg)
+    losses = t.step(global_step=2)
+    assert "critic_fake_score" in losses
+    assert losses["recon_loss"] == 0.0
