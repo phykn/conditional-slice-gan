@@ -115,7 +115,7 @@ class ConditionalSliceGANTrainer:
             self.sparse_min,
             self.sparse_max,
         )
-        return sub, sparse.to(self.device), mask.to(self.device)
+        return sub, sparse, mask
 
     def step_critic(self, axis: int, sub: torch.Tensor, sparse: torch.Tensor, mask: torch.Tensor) -> dict[str, float]:
         self.netG.train()
