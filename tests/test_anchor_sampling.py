@@ -1,100 +1,103 @@
-import torch
+import random
 
-from src.data.anchor_sampling import sample_anchors
+import pytest
 
-
-def _sub_volume(C: int = 1, D: int = 8, H: int = 8, W: int = 8) -> torch.Tensor:
-    g = torch.Generator().manual_seed(0)
-    return torch.randn(C, D, H, W, generator=g)
-
-
-def test_empty_regime_K_zero():
-    sub = _sub_volume()
-    sparse, mask, idx, imgs = sample_anchors(
-        sub, anchor_axis=0,
-        empty_prob=1.0, full_prob=0.0,
-        sparse_min=1, sparse_max=7,
-    )
-    assert sparse.shape == sub.shape
-    assert mask.shape == (1, 8, 8, 8)
-    assert torch.all(sparse == 0)
-    assert torch.all(mask == 0)
-    assert idx == []
-    assert imgs == []
+from src.data.anchor_sampling import (
+    axis_index,
+    choose_anchor_count,
+    sample_positions_with_gap,
+)
 
 
-def test_full_regime_K_equals_D():
-    sub = _sub_volume()
-    sparse, mask, idx, imgs = sample_anchors(
-        sub, anchor_axis=0,
-        empty_prob=0.0, full_prob=1.0,
-        sparse_min=1, sparse_max=7,
-    )
-    assert sparse.shape == sub.shape
-    assert torch.allclose(sparse, sub)
-    assert torch.all(mask == 1)
-    assert sorted(idx) == list(range(8))
-    assert len(imgs) == 8
+def test_axis_index_axis_0():
+    idx = axis_index(0, 3)
+    assert idx == (slice(None), 3, slice(None), slice(None))
 
 
-def test_sparse_regime_K_in_range():
-    sub = _sub_volume()
-    torch.manual_seed(1)
+def test_axis_index_axis_1():
+    idx = axis_index(1, 5)
+    assert idx == (slice(None), slice(None), 5, slice(None))
+
+
+def test_axis_index_axis_2():
+    idx = axis_index(2, 7)
+    assert idx == (slice(None), slice(None), slice(None), 7)
+
+
+def test_choose_anchor_count_empty():
     for _ in range(20):
-        sparse, mask, idx, imgs = sample_anchors(
-            sub, anchor_axis=0,
-            empty_prob=0.0, full_prob=0.0,
+        K = choose_anchor_count(
+            D_axis=8, empty_prob=1.0, full_prob=0.0,
+            sparse_min=1, sparse_max=7,
+        )
+        assert K == 0
+
+
+def test_choose_anchor_count_full():
+    for _ in range(20):
+        K = choose_anchor_count(
+            D_axis=8, empty_prob=0.0, full_prob=1.0,
+            sparse_min=1, sparse_max=7,
+        )
+        assert K == 8
+
+
+def test_choose_anchor_count_sparse_range():
+    random.seed(0)
+    seen = set()
+    for _ in range(200):
+        K = choose_anchor_count(
+            D_axis=8, empty_prob=0.0, full_prob=0.0,
             sparse_min=3, sparse_max=5,
         )
-        assert 3 <= len(idx) <= 5
-        assert len(set(idx)) == len(idx)  # unique
-        assert all(0 <= k < 8 for k in idx)
-        # sparse matches sub at anchor positions
-        for k, img in zip(idx, imgs):
-            assert torch.allclose(sparse[:, k, :, :], img)
-            assert torch.all(mask[:, k, :, :] == 1)
-        # zero elsewhere
-        non_idx = set(range(8)) - set(idx)
-        for k in non_idx:
-            assert torch.all(sparse[:, k, :, :] == 0)
-            assert torch.all(mask[:, k, :, :] == 0)
+        assert 3 <= K <= 5
+        seen.add(K)
+    assert seen == {3, 4, 5}
 
 
-def test_axis_1():
-    sub = _sub_volume(D=8, H=6, W=8)
-    sparse, mask, idx, imgs = sample_anchors(
-        sub, anchor_axis=1,
-        empty_prob=0.0, full_prob=1.0,
-        sparse_min=1, sparse_max=5,
-    )
-    assert sorted(idx) == list(range(6))
-    assert torch.all(mask == 1)
-    # each anchor slice is along H
-    for k, img in zip(idx, imgs):
-        assert img.shape == (1, 8, 8)
-        assert torch.allclose(sparse[:, :, k, :], img)
+def test_sample_positions_K_zero():
+    assert sample_positions_with_gap(D_axis=8, K=0, min_gap=1) == []
+    assert sample_positions_with_gap(D_axis=8, K=0, min_gap=3) == []
 
 
-def test_axis_2():
-    sub = _sub_volume(D=8, H=8, W=6)
-    sparse, mask, idx, imgs = sample_anchors(
-        sub, anchor_axis=2,
-        empty_prob=0.0, full_prob=1.0,
-        sparse_min=1, sparse_max=5,
-    )
-    assert sorted(idx) == list(range(6))
-    for k, img in zip(idx, imgs):
-        assert img.shape == (1, 8, 8)
-        assert torch.allclose(sparse[:, :, :, k], img)
+def test_sample_positions_full_requires_gap_1():
+    pos = sample_positions_with_gap(D_axis=8, K=8, min_gap=1)
+    assert pos == list(range(8))
+    with pytest.raises(AssertionError):
+        sample_positions_with_gap(D_axis=8, K=8, min_gap=2)
 
 
-def test_sparse_max_null_resolves_to_D_minus_1():
-    sub = _sub_volume(D=8)
-    torch.manual_seed(0)
+def test_sample_positions_gap_1_distinct():
+    random.seed(1)
     for _ in range(20):
-        _, _, idx, _ = sample_anchors(
-            sub, anchor_axis=0,
-            empty_prob=0.0, full_prob=0.0,
-            sparse_min=1, sparse_max=None,
-        )
-        assert 1 <= len(idx) <= 7
+        pos = sample_positions_with_gap(D_axis=16, K=5, min_gap=1)
+        assert len(pos) == 5
+        assert len(set(pos)) == 5
+        assert all(0 <= p < 16 for p in pos)
+
+
+def test_sample_positions_gap_respected():
+    random.seed(2)
+    for _ in range(50):
+        pos = sample_positions_with_gap(D_axis=32, K=6, min_gap=4)
+        assert len(pos) == 6
+        assert all(0 <= p < 32 for p in pos)
+        s = sorted(pos)
+        for a, b in zip(s, s[1:]):
+            assert b - a >= 4
+
+
+def test_sample_positions_infeasible_raises():
+    # K=5, min_gap=3, D=10: need last position >= 4*3=12 > 9. Infeasible.
+    with pytest.raises(ValueError, match="infeasible"):
+        sample_positions_with_gap(D_axis=10, K=5, min_gap=3)
+
+
+def test_sample_positions_boundary_feasible():
+    # K=4, min_gap=2, D=8: positions 0,2,4,6 is tight but valid.
+    random.seed(3)
+    pos = sample_positions_with_gap(D_axis=8, K=4, min_gap=2)
+    assert len(pos) == 4
+    s = sorted(pos)
+    for a, b in zip(s, s[1:]):
+        assert b - a >= 2

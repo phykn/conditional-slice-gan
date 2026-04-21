@@ -1,13 +1,10 @@
-from itertools import cycle
-from typing import Iterable, Iterator
+from typing import Iterable
 
 import torch
 from omegaconf import DictConfig
 from torch.nn import Parameter
 from torch.optim import Optimizer
-from torch.utils.data import DataLoader
 
-from .data.voxel_dataset import VoxelDataset
 from .data.image_dataset import ImageDataset, resolve_pools
 from .model.critic import Critic2D
 from .model.generator import UNet3DGenerator
@@ -41,6 +38,18 @@ def validate_config(cfg: DictConfig) -> None:
         f"anchor sparse range invalid: min={smin} max={smax} D={D_axis}"
     )
 
+    g = cfg.anchor.min_gap
+    assert g >= 1, f"anchor.min_gap must be >= 1; got {g}"
+    if g > 1 and fp > 0.0:
+        raise ValueError(
+            f"anchor.full_prob={fp} > 0 requires min_gap=1; got min_gap={g}"
+        )
+    if (smax - 1) * (g - 1) > D_axis - smax:
+        raise ValueError(
+            f"anchor sparse_max={smax} infeasible with min_gap={g} on axis D={D_axis}: "
+            f"need smax + (smax-1)*(min_gap-1) <= D"
+        )
+
     total_stride = 2 ** len(cfg.generator.enc_channels)
     for i, d in enumerate(cfg.data.train_shape):
         assert d % total_stride == 0, (
@@ -56,14 +65,6 @@ def validate_config(cfg: DictConfig) -> None:
         axis2=images.axis2,
     )
 
-    if cfg.data.voxel_path is None:
-        if cfg.anchor.empty_prob != 1.0:
-            raise ValueError(
-                "data.voxel_path is null; anchor.empty_prob must be 1.0 to "
-                "force the unconditional (K=0) regime. Got "
-                f"empty_prob={cfg.anchor.empty_prob}"
-            )
-
 
 def build_image_loader(cfg: DictConfig) -> ImageDataset:
     images = cfg.data.images
@@ -78,26 +79,6 @@ def build_image_loader(cfg: DictConfig) -> ImageDataset:
         train_shape=tuple(cfg.data.train_shape),
         in_channels=cfg.data.in_channels,
     )
-
-
-def build_voxel_loader(cfg: DictConfig) -> Iterator | None:
-    if cfg.data.voxel_path is None:
-        return None
-    dataset = VoxelDataset(
-        voxel_path=cfg.data.voxel_path,
-        train_shape=list(cfg.data.train_shape),
-        in_channels=cfg.data.in_channels,
-        steps_per_epoch=cfg.data.steps_per_epoch,
-    )
-    dl = DataLoader(
-        dataset=dataset,
-        batch_size=cfg.dl.batch_size,
-        shuffle=True,
-        drop_last=True,
-        num_workers=cfg.dl.num_workers,
-        pin_memory=cfg.dl.pin_memory,
-    )
-    return cycle(dl)
 
 
 def build_generator(cfg: DictConfig) -> UNet3DGenerator:
@@ -134,7 +115,6 @@ def build_trainer(
     optG: Optimizer,
     optCs: list[Optimizer],
     image_loader: ImageDataset,
-    voxel_loader: Iterator | None,
 ) -> ConditionalSliceGANTrainer:
     return ConditionalSliceGANTrainer(
         netG=netG,
@@ -142,12 +122,12 @@ def build_trainer(
         optG=optG,
         optCs=optCs,
         image_loader=image_loader,
-        voxel_loader=voxel_loader,
         anchor_axis=cfg.anchor.axis,
         empty_prob=cfg.anchor.empty_prob,
         full_prob=cfg.anchor.full_prob,
         sparse_min=cfg.anchor.sparse_min,
         sparse_max=cfg.anchor.sparse_max,
+        min_gap=cfg.anchor.min_gap,
         train_shape=tuple(cfg.data.train_shape),
         in_channels=cfg.data.in_channels,
         batch_size=cfg.dl.batch_size,

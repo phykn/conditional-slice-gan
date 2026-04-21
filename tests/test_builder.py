@@ -40,6 +40,36 @@ def test_check_train_shape_divisible(tiny_cfg):
         validate_config(tiny_cfg)
 
 
+def test_check_min_gap_positive(tiny_cfg):
+    tiny_cfg.anchor.min_gap = 0
+    with pytest.raises(AssertionError):
+        validate_config(tiny_cfg)
+
+
+def test_check_full_prob_requires_gap_one(tiny_cfg):
+    tiny_cfg.anchor.min_gap = 2
+    tiny_cfg.anchor.full_prob = 0.1
+    with pytest.raises(ValueError, match="full_prob"):
+        validate_config(tiny_cfg)
+
+
+def test_check_sparse_max_feasible_with_gap(tiny_cfg):
+    # train_shape[0]=8, so default sparse_max=7. With min_gap=2, need
+    # smax + (smax-1)*(min_gap-1) <= 8 → smax <= 4. sparse_max=7 infeasible.
+    tiny_cfg.anchor.min_gap = 2
+    tiny_cfg.anchor.full_prob = 0.0
+    tiny_cfg.anchor.sparse_max = 7
+    with pytest.raises(ValueError, match="infeasible"):
+        validate_config(tiny_cfg)
+
+
+def test_check_sparse_max_feasible_within_bound(tiny_cfg):
+    tiny_cfg.anchor.min_gap = 2
+    tiny_cfg.anchor.full_prob = 0.0
+    tiny_cfg.anchor.sparse_max = 4
+    validate_config(tiny_cfg)  # must not raise
+
+
 def test_build_generator(tiny_cfg):
     g = build_generator(tiny_cfg)
     assert isinstance(g, UNet3DGenerator)
@@ -60,24 +90,6 @@ def test_build_image_loader(tiny_cfg):
     assert batch.shape == (2, 1, 8, 8)
 
 
-def test_build_voxel_loader_present(tiny_cfg):
-    from src.builder import build_voxel_loader
-
-    loader = build_voxel_loader(tiny_cfg)
-    assert loader is not None
-    batch = next(loader)
-    assert batch.shape == (2, 1, 8, 8, 8)
-
-
-def test_build_voxel_loader_absent(tiny_cfg):
-    from src.builder import build_voxel_loader
-
-    tiny_cfg.data.voxel_path = None
-    tiny_cfg.anchor.empty_prob = 1.0
-    tiny_cfg.anchor.full_prob = 0.0
-    assert build_voxel_loader(tiny_cfg) is None
-
-
 def test_build_optimizer(tiny_cfg):
     g = build_generator(tiny_cfg)
     opt = build_optimizer(tiny_cfg, g.parameters())
@@ -85,16 +97,16 @@ def test_build_optimizer(tiny_cfg):
 
 
 def test_build_trainer(tiny_cfg):
-    from src.builder import build_image_loader, build_voxel_loader
+    from src.builder import build_image_loader
 
     g = build_generator(tiny_cfg)
     cs = [build_critic(tiny_cfg) for _ in range(3)]
     optG = build_optimizer(tiny_cfg, g.parameters())
     optCs = [build_optimizer(tiny_cfg, c.parameters()) for c in cs]
     image_loader = build_image_loader(tiny_cfg)
-    voxel_loader = build_voxel_loader(tiny_cfg)
-    trainer = build_trainer(tiny_cfg, g, cs, optG, optCs, image_loader, voxel_loader)
+    trainer = build_trainer(tiny_cfg, g, cs, optG, optCs, image_loader)
     assert trainer.recon_lambda == 10.0
+    assert trainer.min_gap == 1
 
 
 def test_validate_rejects_missing_image_pool(tiny_cfg):
@@ -109,18 +121,4 @@ def test_validate_accepts_per_axis_images(tiny_cfg, sample_image_dir):
     tiny_cfg.data.images.axis0 = sample_image_dir
     tiny_cfg.data.images.axis1 = sample_image_dir
     tiny_cfg.data.images.axis2 = sample_image_dir
-    validate_config(tiny_cfg)  # must not raise
-
-
-def test_validate_rejects_no_voxel_with_anchors(tiny_cfg):
-    tiny_cfg.data.voxel_path = None
-    tiny_cfg.anchor.empty_prob = 0.0  # conflicts with voxel=None
-    with pytest.raises(ValueError, match="empty_prob"):
-        validate_config(tiny_cfg)
-
-
-def test_validate_accepts_no_voxel_with_empty_prob_one(tiny_cfg):
-    tiny_cfg.data.voxel_path = None
-    tiny_cfg.anchor.empty_prob = 1.0
-    tiny_cfg.anchor.full_prob = 0.0
     validate_config(tiny_cfg)  # must not raise

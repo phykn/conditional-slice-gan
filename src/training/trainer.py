@@ -1,6 +1,5 @@
 import os
 from datetime import datetime
-from typing import Iterator
 
 import torch
 from einops import rearrange
@@ -8,11 +7,15 @@ from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from ..data.anchor_sampling import choose_anchor_count, place_anchor_slices
+from ..data.anchor_sampling import (
+    axis_index,
+    choose_anchor_count,
+    sample_positions_with_gap,
+)
+from ..data.image_dataset import ImageDataset
 from ..model.critic import Critic2D
 from ..model.generator import UNet3DGenerator
 from .penalty import gradient_penalty
-from ..data.image_dataset import ImageDataset
 
 
 def _slice_along_axis(volume: torch.Tensor, axis: int) -> torch.Tensor:
@@ -25,41 +28,16 @@ def _slice_along_axis(volume: torch.Tensor, axis: int) -> torch.Tensor:
     raise ValueError(f"axis must be 0, 1, or 2; got {axis}")
 
 
-def _batch_anchor_sample(
-    sub: torch.Tensor,
-    anchor_axis: int,
-    empty_prob: float,
-    full_prob: float,
-    sparse_min: int,
-    sparse_max: int | None,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Apply per-sample anchor placement with a batch-shared anchor count K.
-    Regime (empty/full/sparse) and K are drawn *once* per batch; indices differ
-    per sample."""
-    D_axis = sub.shape[2 + anchor_axis]
-    K = choose_anchor_count(D_axis, empty_prob, full_prob, sparse_min, sparse_max)
-
-    sparses: list[torch.Tensor] = []
-    masks: list[torch.Tensor] = []
-    for i in range(sub.shape[0]):
-        sp, mk, _, _ = place_anchor_slices(sub[i], anchor_axis, K)
-        sparses.append(sp)
-        masks.append(mk)
-
-    return torch.stack(sparses), torch.stack(masks)
-
-
 def _recon_loss(
     fake: torch.Tensor,
-    sub: torch.Tensor,
+    target: torch.Tensor,
     mask: torch.Tensor,
 ) -> torch.Tensor:
-    """L1 between fake and sub at mask==1 positions, normalized by mask sum."""
+    """L1 between fake and target at mask==1 positions, normalized by mask sum."""
     denom = mask.sum()
     if denom.item() == 0:
         return torch.zeros((), device=fake.device, dtype=fake.dtype)
-    # Broadcast mask across C.
-    return (mask * (fake - sub).abs()).sum() / (denom * fake.shape[1])
+    return (mask * (fake - target).abs()).sum() / (denom * fake.shape[1])
 
 
 class ConditionalSliceGANTrainer:
@@ -70,12 +48,12 @@ class ConditionalSliceGANTrainer:
         optG: Optimizer,
         optCs: list[Optimizer],
         image_loader: ImageDataset,
-        voxel_loader: Iterator | None,
         anchor_axis: int,
         empty_prob: float,
         full_prob: float,
         sparse_min: int,
         sparse_max: int | None,
+        min_gap: int,
         train_shape: tuple[int, int, int],
         in_channels: int,
         batch_size: int,
@@ -93,12 +71,12 @@ class ConditionalSliceGANTrainer:
         self.optG = optG
         self.optCs = optCs
         self.image_loader = image_loader
-        self.voxel_loader = voxel_loader
         self.anchor_axis = anchor_axis
         self.empty_prob = empty_prob
         self.full_prob = full_prob
         self.sparse_min = sparse_min
         self.sparse_max = sparse_max
+        self.min_gap = min_gap
         self.train_shape = tuple(train_shape)
         self.in_channels = in_channels
         self.batch_size = batch_size
@@ -114,31 +92,44 @@ class ConditionalSliceGANTrainer:
         os.makedirs(os.path.join(self.save_dir, "weights"), exist_ok=True)
         self.writer = SummaryWriter(os.path.join(self.save_dir, "logs"))
 
+    def _make_anchor_batch(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Draw a batch-shared K, then synthesize (sparse, mask) per sample by
+        placing K 2D images from the anchor-axis pool at distinct positions
+        separated by at least `min_gap`."""
+        D, H, W = self.train_shape
+        D_axis = self.train_shape[self.anchor_axis]
+        K = choose_anchor_count(
+            D_axis, self.empty_prob, self.full_prob, self.sparse_min, self.sparse_max,
+        )
+
+        B = self.batch_size
+        sparse = torch.zeros((B, self.in_channels, D, H, W), device=self.device)
+        mask = torch.zeros((B, 1, D, H, W), device=self.device)
+
+        if K == 0:
+            return sparse, mask
+
+        imgs = self.image_loader.sample(self.anchor_axis, B * K).to(self.device)
+        imgs = imgs.view(B, K, *imgs.shape[1:])
+
+        for b in range(B):
+            positions = sample_positions_with_gap(D_axis, K, self.min_gap)
+            for k, p in enumerate(positions):
+                slot = (b,) + axis_index(self.anchor_axis, p)
+                sparse[slot] = imgs[b, k]
+                mask[slot] = 1.0
+
+        return sparse, mask
+
     def _sample_batch(
         self, axis: int
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        B = self.batch_size
-        C = self.in_channels
-        D, H, W = self.train_shape
-
-        if self.voxel_loader is not None:
-            sub = next(self.voxel_loader).float().to(self.device)
-            sparse, mask = _batch_anchor_sample(
-                sub,
-                self.anchor_axis,
-                self.empty_prob,
-                self.full_prob,
-                self.sparse_min,
-                self.sparse_max,
-            )
-        else:
-            sub = torch.zeros((B, C, D, H, W), device=self.device)
-            sparse = torch.zeros((B, C, D, H, W), device=self.device)
-            mask = torch.zeros((B, 1, D, H, W), device=self.device)
-
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        sparse, mask = self._make_anchor_batch()
         S_axis = self.train_shape[axis]
-        real_2d = self.image_loader.sample(axis, count=B * S_axis).to(self.device)
-        return real_2d, sub, sparse, mask
+        real_2d = self.image_loader.sample(
+            axis, count=self.batch_size * S_axis,
+        ).to(self.device)
+        return real_2d, sparse, mask
 
     def step_critic(
         self,
@@ -173,7 +164,9 @@ class ConditionalSliceGANTrainer:
             "loss": loss.item(),
         }
 
-    def step_generator(self, sub: torch.Tensor, sparse: torch.Tensor, mask: torch.Tensor) -> dict[str, float]:
+    def step_generator(
+        self, sparse: torch.Tensor, mask: torch.Tensor
+    ) -> dict[str, float]:
         self.netG.train()
         self.optG.zero_grad(set_to_none=True)
 
@@ -181,7 +174,7 @@ class ConditionalSliceGANTrainer:
         scores = [self.netCs[a](_slice_along_axis(fake_3d, a)).mean() for a in range(3)]
         adv = -torch.stack(scores).mean()
 
-        rec = _recon_loss(fake_3d, sub, mask)
+        rec = _recon_loss(fake_3d, sparse, mask)
 
         loss = adv + self.recon_lambda * rec
         loss.backward()
@@ -195,14 +188,14 @@ class ConditionalSliceGANTrainer:
 
     def step(self, global_step: int) -> dict[str, float]:
         axis = global_step % 3
-        real, sub, sparse, mask = self._sample_batch(axis)
+        real, sparse, mask = self._sample_batch(axis)
 
         losses = self.step_critic(axis, real, sparse, mask)
         for k, v in losses.items():
             self.writer.add_scalar(f"train/{k}", v, global_step)
 
         if global_step > 0 and global_step % self.gen_freq == 0:
-            gen_losses = self.step_generator(sub, sparse, mask)
+            gen_losses = self.step_generator(sparse, mask)
             for k, v in gen_losses.items():
                 self.writer.add_scalar(f"train/{k}", v, global_step)
             losses.update(gen_losses)

@@ -65,8 +65,23 @@ class ImageDataset:
         for a, directory in pools.items():
             paths = _list_images(directory)
             loaded = [load_image(p, in_channels) for p in paths]
-            _validate_pool_sizes(a, self.train_shape, loaded, paths)
+            self._validate_pool_sizes(a, loaded, paths)
             self._images[a] = loaded
+
+    def _validate_pool_sizes(
+        self,
+        axis: int,
+        loaded: list[np.ndarray],
+        paths: list[str],
+    ) -> None:
+        ch, cw = _axis_crop_hw(axis, self.train_shape)
+        for p, img in zip(paths, loaded):
+            _, ih, iw = img.shape
+            if ih < ch or iw < cw:
+                raise ValueError(
+                    f"image {p} of shape ({ih},{iw}) smaller than "
+                    f"crop ({ch},{cw}) required for axis {axis}"
+                )
 
     def sample(self, axis: int, count: int) -> torch.Tensor:
         ch, cw = _axis_crop_hw(axis, self.train_shape)
@@ -84,22 +99,6 @@ class ImageDataset:
                 crop = crop[:, :, ::-1]
             out[i] = np.ascontiguousarray(crop)
         return torch.from_numpy(out)
-
-
-def _validate_pool_sizes(
-    axis: int,
-    train_shape: tuple[int, int, int],
-    loaded: list[np.ndarray],
-    paths: list[str],
-) -> None:
-    ch, cw = _axis_crop_hw(axis, train_shape)
-    for p, img in zip(paths, loaded):
-        _, ih, iw = img.shape
-        if ih < ch or iw < cw:
-            raise ValueError(
-                f"image {p} of shape ({ih},{iw}) smaller than "
-                f"crop ({ch},{cw}) required for axis {axis}"
-            )
 
 
 def resolve_pools(

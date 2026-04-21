@@ -1,8 +1,6 @@
 data:
-  voxel_path: "data/default/3d/sample_volume.npy"
   train_shape: [64, 64, 64]
   in_channels: 1
-  steps_per_epoch: 512
   images:
     shared: "data/default/2d"
     axis0: null
@@ -15,6 +13,7 @@ anchor:
   full_prob: 0.1
   sparse_min: 1
   sparse_max: null
+  min_gap: 1
 
 dl:
   batch_size: 8

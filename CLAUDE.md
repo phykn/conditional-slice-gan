@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Training entry point:
 ```bash
 python run_train.py                                                 # uses configs/default.yaml
-python run_train.py --config configs/default.yaml --voxel-path data/foo.npy
+python run_train.py --config configs/default.yaml --images-dir data/my_pool
 ```
 
 Prediction entry point:
@@ -23,17 +23,17 @@ Outputs land in `run/<YYYYMMDD_HHMMSS>/`: TensorBoard events in `logs/`, model w
 
 ## Architecture
 
-This is a **conditional Slice-GAN**: a 3D U-Net generator is supervised by **three independent 2D critics** (one per spatial axis). The generator consumes `(sparse, mask)` and produces a 3D volume; critics judge 2D slices along axes 0/1/2. Anchor images are positioned by being physically placed in the sparse volume at their target index — no separate index encoding. A single checkpoint handles three regimes: `K = 0` (unconditional), `K ∈ [1, D−1]` (sparse fill), `K = D` (identity). Critic real 2D slices now come from per-axis image pools (or a shared fallback), not from the 3D volume. The 3D volume is optional — when absent, training is unconditional (K=0 only).
+This is a **conditional Slice-GAN**: a 3D U-Net generator is supervised by **three independent 2D critics** (one per spatial axis). The generator consumes `(sparse, mask)` and produces a 3D volume; critics judge 2D slices along axes 0/1/2. Anchor images are positioned by being physically placed in the sparse volume at their target index — no separate index encoding. A single checkpoint handles three regimes: `K = 0` (unconditional), `K ∈ [1, D−1]` (sparse fill), `K = D` (identity). Training requires **only 2D image pools** — no 3D ground-truth volume. Anchors are synthesized at each step by sampling K images from the anchor-axis pool and planting them at distinct positions separated by at least `min_gap`.
 
 Data flow per training step (`src/training/trainer.py`):
 1. **Critic real data**: drawn per-axis from `ImageDataset.sample(axis, count=B*S_axis)` — each axis has its own 2D image pool, with an optional shared fallback.
-2. **Anchor source**: `VoxelDataset` (optional) provides sub-volumes; `_batch_anchor_sample` picks a regime (empty / full / sparse) **once per batch** and builds `(sparse, mask)` for every sample via `place_anchor_slices`. When `VoxelDataset` is absent, `sparse`/`mask` are zero tensors and `K=0` is forced.
+2. **Anchor synthesis**: `Trainer._make_anchor_batch` picks a regime (empty / full / sparse) and `K` **once per batch** via `choose_anchor_count`. For each sample it draws `K` positions along `anchor_axis` via `sample_positions_with_gap` (honoring `min_gap`), samples `B*K` 2D images from the anchor-axis pool, and places them into `(sparse, mask)`.
 3. `axis = global_step % 3` selects the critic to update.
 4. `netG(sparse, mask)` emits `(B, C, D, H, W)`; `_slice_along_axis` flattens to 2D slices `(B*S, C, H, W)` via einops.
 5. The selected critic is trained with WGAN-GP loss (`fake_score - real_score + gp`); `src/training/penalty.py::gradient_penalty` computes GP after subsampling fake slices to match the real batch size.
-6. Every `gen_freq` steps the generator is updated against the mean of all three critics' fake scores plus `recon_lambda × L1(fake, sub)` at mask positions. When `K = 0` (empty regime) or voxel is absent, the recon term is zero.
+6. Every `gen_freq` steps the generator is updated against the mean of all three critics' fake scores plus `recon_lambda × L1(fake, sparse)` at mask positions. At mask==1 positions `sparse` is the planted condition image, so the recon term drives identity mapping. When `K = 0` (empty regime), recon is zero.
 
-Two independent sources feed the trainer each step: `ImageDataset.sample(axis, count)` for real 2D slices (per-axis pools, optional shared fallback), and an optional `itertools.cycle(DataLoader(VoxelDataset))` for 3D sub-volumes (anchor source only). `VoxelDataset.__len__` is still driven by `cfg.data.steps_per_epoch`.
+The sole data source is `ImageDataset.sample(axis, count)`: it feeds both critic reals (along the current critic axis) and anchor plants (along `anchor_axis`).
 
 ### Config wiring
 
@@ -43,9 +43,9 @@ Everything is composed by explicit `build_*` functions in `src/builder.py` drive
 - `cfg.data.in_channels == cfg.critic.channels[0]` (generator output channels are projected via an internal 1×1 Conv3d, so `dec_channels[-1]` is a feature width, not image channels).
 - `len(cfg.generator.enc_channels) == len(cfg.generator.dec_channels)`.
 - `cfg.anchor.axis ∈ {0, 1, 2}`; `empty_prob + full_prob ≤ 1`; sparse range valid.
+- `cfg.anchor.min_gap ≥ 1`. `full_prob > 0` requires `min_gap == 1`. `sparse_max` must fit along the anchor axis under `min_gap`.
 - `cfg.data.train_shape` divisible by total stride (`2 ** len(enc_channels)`).
 - `cfg.data.images` must resolve to a per-axis pool for each of 0/1/2 (via `data.images.shared` fallback or per-axis `axis0`/`axis1`/`axis2` overrides).
-- When `cfg.data.voxel_path` is null, `cfg.anchor.empty_prob` must be 1.0 (forces unconditional regime).
 
 RGB is enabled by setting `data.in_channels` and `critic.channels[0]` to `3` (encoder input = `3 + 1 mask = 4`, projected in by the first encoder block).
 
@@ -57,4 +57,4 @@ RGB is enabled by setting `data.in_channels` and `critic.channels[0]` to `3` (en
 
 `src/inference/predictor.py::Predictor.predict(anchor_images, anchor_indices, shape=None, axis=None, seed=None)` loads a trained run and generates a volume. Shape defaults to train shape; user-supplied shape must be ≤ 2× per-dim and divisible by total stride. There is **no inference-time anchor overwrite** — anchor fidelity is driven only by the L1 training loss, so neighbors remain consistent with predicted anchor values.
 
-`run_predict.py` wraps this with a YAML anchor-spec CLI. `src/inference/io.py` handles image loading (with `in_channels`-aware grayscale conversion via `cv2`) and volume output dispatch (`.npy` vs `.tif/.tiff`).
+`run_predict.py` wraps this with a YAML anchor-spec CLI. `src/inference/io.py` handles image loading (with `in_channels`-aware grayscale conversion) and volume output dispatch (`.npy` vs `.tif/.tiff`).

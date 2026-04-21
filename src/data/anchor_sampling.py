@@ -1,7 +1,5 @@
 import random
 
-import torch
-
 
 def axis_index(anchor_axis: int, k: int) -> tuple:
     """Index tuple selecting slice k along spatial `anchor_axis` of a (C, D, H, W) array.
@@ -29,49 +27,25 @@ def choose_anchor_count(
     return random.randint(sparse_min, smax)
 
 
-def place_anchor_slices(
-    sub_volume: torch.Tensor,
-    anchor_axis: int,
-    K: int,
-) -> tuple[torch.Tensor, torch.Tensor, list[int], list[torch.Tensor]]:
-    assert sub_volume.ndim == 4, "expected (C, D, H, W)"
-    assert anchor_axis in (0, 1, 2), f"anchor_axis must be 0, 1, or 2; got {anchor_axis}"
+def sample_positions_with_gap(D_axis: int, K: int, min_gap: int) -> list[int]:
+    """Sample K distinct positions in [0, D_axis) such that any two differ by at least `min_gap`.
 
-    spatial = sub_volume.shape[1:]  # (D, H, W)
-    D_axis = spatial[anchor_axis]
+    Uses the bijection p_i = q_i + i * (min_gap - 1) with 0 <= q_0 < q_1 < ... < q_{K-1}
+    < D_axis - (K-1)*(min_gap-1), so no rejection sampling is needed.
+    """
+    assert min_gap >= 1, f"min_gap must be >= 1; got {min_gap}"
     assert 0 <= K <= D_axis, f"K={K} out of range [0, {D_axis}]"
-
     if K == 0:
-        indices: list[int] = []
-    elif K == D_axis:
-        indices = list(range(D_axis))
-    else:
-        indices = random.sample(range(D_axis), K)
-
-    sparse = torch.zeros_like(sub_volume)
-    mask = torch.zeros((1, *spatial), dtype=sub_volume.dtype, device=sub_volume.device)
-    images: list[torch.Tensor] = []
-
-    for k in indices:
-        slot = axis_index(anchor_axis, k)
-        img = sub_volume[slot]
-        sparse[slot] = img
-        mask[slot] = 1
-        images.append(img.clone())
-
-    return sparse, mask, indices, images
-
-
-def sample_anchors(
-    sub_volume: torch.Tensor,
-    anchor_axis: int,
-    empty_prob: float,
-    full_prob: float,
-    sparse_min: int,
-    sparse_max: int | None,
-) -> tuple[torch.Tensor, torch.Tensor, list[int], list[torch.Tensor]]:
-    assert sub_volume.ndim == 4, "expected (C, D, H, W)"
-    assert anchor_axis in (0, 1, 2), f"anchor_axis must be 0, 1, or 2; got {anchor_axis}"
-    D_axis = sub_volume.shape[1 + anchor_axis]
-    K = choose_anchor_count(D_axis, empty_prob, full_prob, sparse_min, sparse_max)
-    return place_anchor_slices(sub_volume, anchor_axis, K)
+        return []
+    if K == D_axis:
+        assert min_gap == 1, (
+            f"K={K} (full) with min_gap={min_gap} is infeasible; full regime requires min_gap=1"
+        )
+        return list(range(D_axis))
+    reduced = D_axis - (K - 1) * (min_gap - 1)
+    if reduced < K:
+        raise ValueError(
+            f"infeasible: K={K} positions with min_gap={min_gap} in D={D_axis}"
+        )
+    q = sorted(random.sample(range(reduced), K))
+    return [q_i + i * (min_gap - 1) for i, q_i in enumerate(q)]
