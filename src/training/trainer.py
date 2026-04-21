@@ -34,9 +34,7 @@ def _recon_loss(
     mask: torch.Tensor,
 ) -> torch.Tensor:
     """L1 between fake and target at mask==1 positions, normalized by mask sum."""
-    denom = mask.sum()
-    if denom.item() == 0:
-        return torch.zeros((), device=fake.device, dtype=fake.dtype)
+    denom = mask.sum().clamp(min=1.0)
     return (mask * (fake - target).abs()).sum() / (denom * fake.shape[1])
 
 
