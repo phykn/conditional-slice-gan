@@ -28,3 +28,23 @@ def test_axis0_crop_shape(img_dir):
     assert batch.shape == (5, 1, 16, 24)
     assert batch.dtype == torch.float32
     assert batch.min() >= -1.0 and batch.max() <= 1.0
+
+
+def test_axis1_crop_shape(img_dir):
+    ds = ImageDataset(
+        pools={0: img_dir, 1: img_dir, 2: img_dir},
+        train_shape=(8, 16, 24),
+        in_channels=1,
+    )
+    batch = ds.sample(axis=1, count=3)
+    assert batch.shape == (3, 1, 8, 24)
+
+
+def test_axis2_crop_shape(img_dir):
+    ds = ImageDataset(
+        pools={0: img_dir, 1: img_dir, 2: img_dir},
+        train_shape=(8, 16, 24),
+        in_channels=1,
+    )
+    batch = ds.sample(axis=2, count=3)
+    assert batch.shape == (3, 1, 8, 16)
