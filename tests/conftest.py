@@ -13,7 +13,19 @@ def sample_voxel_path(tmp_path):
 
 
 @pytest.fixture
-def tiny_cfg(sample_voxel_path) -> DictConfig:
+def sample_image_dir(tmp_path):
+    import cv2
+    d = tmp_path / "images"
+    d.mkdir()
+    rng = np.random.default_rng(42)
+    for i in range(3):
+        img = rng.integers(0, 256, size=(64, 64), dtype=np.uint8)
+        cv2.imwrite(str(d / f"img_{i}.png"), img)
+    return str(d)
+
+
+@pytest.fixture
+def tiny_cfg(sample_voxel_path, sample_image_dir) -> DictConfig:
     return OmegaConf.create(
         {
             "data": {
@@ -21,6 +33,12 @@ def tiny_cfg(sample_voxel_path) -> DictConfig:
                 "train_shape": [8, 8, 8],
                 "in_channels": 1,
                 "steps_per_epoch": 4,
+                "images": {
+                    "shared": sample_image_dir,
+                    "axis0": None,
+                    "axis1": None,
+                    "axis2": None,
+                },
             },
             "anchor": {
                 "axis": 0,
