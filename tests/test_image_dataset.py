@@ -103,3 +103,25 @@ def test_rejects_small_image(tmp_path):
             train_shape=(8, 16, 16),
             in_channels=1,
         )
+
+
+def test_flip_augmentation_varies_output(tmp_path):
+    """With crop == image size, only flips can produce varied outputs."""
+    import cv2
+    d = tmp_path / "one"
+    d.mkdir()
+    img = np.zeros((16, 16), dtype=np.uint8)
+    img[:8, :] = 255   # asymmetric under vertical flip
+    img[:, :8] = 200   # asymmetric under horizontal flip
+    cv2.imwrite(str(d / "img.png"), img)
+
+    # train_shape chosen so axis-0 crop is (16, 16), matching image size.
+    ds = ImageDataset(
+        pools={0: str(d), 1: str(d), 2: str(d)},
+        train_shape=(8, 16, 16),
+        in_channels=1,
+    )
+    np.random.seed(0)
+    tensors = [ds.sample(axis=0, count=1)[0] for _ in range(20)]
+    unique = {t.numpy().tobytes() for t in tensors}
+    assert len(unique) >= 2, "flips should produce varied outputs"

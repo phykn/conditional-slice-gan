@@ -78,7 +78,12 @@ class ImageDataset:
             _, ih, iw = img.shape
             y0 = np.random.randint(0, ih - ch + 1)
             x0 = np.random.randint(0, iw - cw + 1)
-            out[i] = img[:, y0:y0+ch, x0:x0+cw]
+            crop = img[:, y0:y0+ch, x0:x0+cw]
+            if np.random.rand() < 0.5:
+                crop = crop[:, ::-1, :]
+            if np.random.rand() < 0.5:
+                crop = crop[:, :, ::-1]
+            out[i] = np.ascontiguousarray(crop)
         return torch.from_numpy(out)
 
 
