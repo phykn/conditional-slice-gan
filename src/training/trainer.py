@@ -1,5 +1,4 @@
 import os
-import random
 from datetime import datetime
 from typing import Iterator
 
@@ -9,7 +8,7 @@ from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from ..data.anchor_sampling import sample_anchors
+from ..data.anchor_sampling import choose_anchor_count, place_anchor_slices
 from ..model.critic import Critic2D
 from ..model.generator import UNet3DGenerator
 from .penalty import gradient_penalty
@@ -33,37 +32,16 @@ def _batch_anchor_sample(
     sparse_min: int,
     sparse_max: int | None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Apply sample_anchors independently to each sample in the batch.
-    Regime (empty/full/sparse) is drawn *once* per batch; K within sparse regime
-    is identical across the batch but indices differ per sample."""
-    B = sub.shape[0]
+    """Apply per-sample anchor placement with a batch-shared anchor count K.
+    Regime (empty/full/sparse) and K are drawn *once* per batch; indices differ
+    per sample."""
     D_axis = sub.shape[2 + anchor_axis]
-
-    r = random.random()
-    if r < empty_prob:
-        effective_empty, effective_full = 1.0, 0.0
-    elif r < empty_prob + full_prob:
-        effective_empty, effective_full = 0.0, 1.0
-    else:
-        # Sparse — draw a single K for the whole batch.
-        smax = D_axis - 1 if sparse_max is None else sparse_max
-        K_batch = random.randint(sparse_min, smax)
-        effective_empty, effective_full = 0.0, 0.0
-        sparse_min = K_batch
-        sparse_max = K_batch
+    K = choose_anchor_count(D_axis, empty_prob, full_prob, sparse_min, sparse_max)
 
     sparses: list[torch.Tensor] = []
     masks: list[torch.Tensor] = []
-
-    for i in range(B):
-        sp, mk, _, _ = sample_anchors(
-            sub[i],
-            anchor_axis=anchor_axis,
-            empty_prob=effective_empty,
-            full_prob=effective_full,
-            sparse_min=sparse_min,
-            sparse_max=sparse_max,
-        )
+    for i in range(sub.shape[0]):
+        sp, mk, _, _ = place_anchor_slices(sub[i], anchor_axis, K)
         sparses.append(sp)
         masks.append(mk)
 
