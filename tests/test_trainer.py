@@ -1,4 +1,3 @@
-# tests/test_trainer.py
 import os
 
 import torch

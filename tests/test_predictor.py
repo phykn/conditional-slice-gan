@@ -1,4 +1,3 @@
-# tests/test_predictor.py
 import numpy as np
 import torch
 from omegaconf import OmegaConf

@@ -1,4 +1,3 @@
-# src/model/generator.py
 import torch
 import torch.nn as nn
 from torch.nn.init import constant_, trunc_normal_

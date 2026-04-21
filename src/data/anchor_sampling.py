@@ -1,4 +1,3 @@
-# src/data/anchor_sampling.py
 import random
 
 import torch

@@ -1,4 +1,3 @@
-# src/training/trainer.py
 import os
 import random
 from datetime import datetime

@@ -1,4 +1,3 @@
-# run_predict.py
 import argparse
 
 from src.inference.io import load_anchor_image, load_anchor_spec, save_volume

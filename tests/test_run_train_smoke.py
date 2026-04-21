@@ -1,4 +1,3 @@
-# tests/test_run_train_smoke.py
 import os
 import subprocess
 import sys

@@ -1,4 +1,3 @@
-# tests/test_anchor_sampling.py
 import torch
 
 from src.data.anchor_sampling import sample_anchors

@@ -1,4 +1,3 @@
-# run_train.py
 import argparse
 
 import torch

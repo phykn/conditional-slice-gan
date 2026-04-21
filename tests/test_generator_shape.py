@@ -1,4 +1,3 @@
-# tests/test_generator_shape.py
 import pytest
 import torch
 

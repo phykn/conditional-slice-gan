@@ -1,4 +1,3 @@
-# src/builder.py
 from itertools import cycle
 from typing import Iterable, Iterator
 
