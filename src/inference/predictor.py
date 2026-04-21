@@ -5,6 +5,7 @@ import torch
 from omegaconf import OmegaConf
 
 from ..builder import build_generator
+from ..data.anchor_sampling import axis_index
 
 
 class Predictor:
@@ -73,16 +74,9 @@ class Predictor:
         sparse_np = np.zeros((C,) + shape, dtype=np.float32)
         mask_np = np.zeros((1,) + shape, dtype=np.float32)
         for img, k in zip(anchor_images, anchor_indices):
-            img_chw = self._to_chw(img.astype(np.float32))
-            if axis == 0:
-                sparse_np[:, k, :, :] = img_chw
-                mask_np[:, k, :, :] = 1.0
-            elif axis == 1:
-                sparse_np[:, :, k, :] = img_chw
-                mask_np[:, :, k, :] = 1.0
-            else:
-                sparse_np[:, :, :, k] = img_chw
-                mask_np[:, :, :, k] = 1.0
+            slot = axis_index(axis, k)
+            sparse_np[slot] = self._to_chw(img.astype(np.float32))
+            mask_np[slot] = 1.0
 
         sparse = torch.from_numpy(sparse_np).unsqueeze(0).to(self.device)
         mask = torch.from_numpy(mask_np).unsqueeze(0).to(self.device)

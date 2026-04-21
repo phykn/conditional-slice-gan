@@ -3,6 +3,12 @@ import random
 import torch
 
 
+def axis_index(anchor_axis: int, k: int) -> tuple:
+    """Index tuple selecting slice k along spatial `anchor_axis` of a (C, D, H, W) array.
+    Works on both torch tensors and numpy arrays."""
+    return (slice(None),) + tuple(k if i == anchor_axis else slice(None) for i in range(3))
+
+
 def choose_anchor_count(
     D_axis: int,
     empty_prob: float,
@@ -47,18 +53,10 @@ def place_anchor_slices(
     images: list[torch.Tensor] = []
 
     for k in indices:
-        if anchor_axis == 0:
-            img = sub_volume[:, k, :, :]
-            sparse[:, k, :, :] = img
-            mask[:, k, :, :] = 1
-        elif anchor_axis == 1:
-            img = sub_volume[:, :, k, :]
-            sparse[:, :, k, :] = img
-            mask[:, :, k, :] = 1
-        else:
-            img = sub_volume[:, :, :, k]
-            sparse[:, :, :, k] = img
-            mask[:, :, :, k] = 1
+        slot = axis_index(anchor_axis, k)
+        img = sub_volume[slot]
+        sparse[slot] = img
+        mask[slot] = 1
         images.append(img.clone())
 
     return sparse, mask, indices, images
