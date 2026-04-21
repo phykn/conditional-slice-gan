@@ -48,3 +48,26 @@ def test_axis2_crop_shape(img_dir):
     )
     batch = ds.sample(axis=2, count=3)
     assert batch.shape == (3, 1, 8, 16)
+
+
+def test_resolve_pools_shared_only(img_dir):
+    from src.data.image_dataset import resolve_pools
+
+    pools = resolve_pools(shared=img_dir, axis0=None, axis1=None, axis2=None)
+    assert pools == {0: img_dir, 1: img_dir, 2: img_dir}
+
+
+def test_resolve_pools_axis_override(tmp_path, img_dir):
+    from src.data.image_dataset import resolve_pools
+
+    other = tmp_path / "other"
+    other.mkdir()
+    pools = resolve_pools(shared=img_dir, axis0=str(other), axis1=None, axis2=None)
+    assert pools == {0: str(other), 1: img_dir, 2: img_dir}
+
+
+def test_resolve_pools_requires_coverage(img_dir):
+    from src.data.image_dataset import resolve_pools
+
+    with pytest.raises(ValueError, match="axis 1"):
+        resolve_pools(shared=None, axis0=img_dir, axis1=None, axis2=img_dir)

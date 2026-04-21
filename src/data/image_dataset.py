@@ -96,3 +96,31 @@ def _validate_pool_sizes(
                 f"image {p} of shape ({ih},{iw}) smaller than "
                 f"crop ({ch},{cw}) required for axis {axis}"
             )
+
+
+def resolve_pools(
+    shared: str | None,
+    axis0: str | None,
+    axis1: str | None,
+    axis2: str | None,
+) -> dict[int, str]:
+    """Resolve per-axis pools, falling back to `shared` when an axis is unset.
+
+    Raises if any axis ends up unresolved.
+    """
+    candidates = {0: axis0, 1: axis1, 2: axis2}
+    resolved: dict[int, str] = {}
+    missing: list[int] = []
+    for a, v in candidates.items():
+        chosen = v if v is not None else shared
+        if chosen is None:
+            missing.append(a)
+        else:
+            resolved[a] = chosen
+    if missing:
+        axes_str = ", ".join(str(a) for a in missing)
+        raise ValueError(
+            f"no image pool resolved for axis {axes_str}; set data.images.shared "
+            f"or the per-axis override"
+        )
+    return resolved
