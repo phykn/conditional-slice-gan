@@ -122,32 +122,32 @@ class ConditionalSliceGANTrainer:
 
         return sparse, mask
 
+    def _sample_real_2d(self, axis: int) -> torch.Tensor:
+        S_axis = self.train_shape[axis]
+        return self.image_loader.sample(
+            axis,
+            count=self.batch_size * S_axis,
+        ).to(self.device)
+
     def _sample_batch(
         self, axis: int
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         sparse, mask = self._make_anchor_batch()
-        S_axis = self.train_shape[axis]
-        real_2d = self.image_loader.sample(
-            axis,
-            count=self.batch_size * S_axis,
-        ).to(self.device)
+        real_2d = self._sample_real_2d(axis)
         return real_2d, sparse, mask
 
-    def step_critic(
+    def _update_critic(
         self,
         axis: int,
         real: torch.Tensor,
-        sparse: torch.Tensor,
+        fake_3d: torch.Tensor,
         mask: torch.Tensor,
     ) -> dict[str, float]:
-        self.netG.train()
         netC = self.netCs[axis]
         optC = self.optCs[axis]
         netC.train()
         optC.zero_grad(set_to_none=True)
 
-        with torch.no_grad():
-            fake_3d = self.netG(sparse, mask)
         fake = _slice_along_axis(fake_3d, axis)
         if axis == 0:
             fake = _drop_axis0_anchors(fake, mask)
@@ -196,10 +196,21 @@ class ConditionalSliceGANTrainer:
         }
 
     def step(self, global_step: int) -> dict[str, float]:
-        axis = global_step % 3
-        real, sparse, mask = self._sample_batch(axis)
+        sparse, mask = self._make_anchor_batch()
 
-        losses = self.step_critic(axis, real, sparse, mask)
+        self.netG.train()
+        with torch.no_grad():
+            fake_3d = self.netG(sparse, mask)
+
+        per_axis: list[dict[str, float]] = []
+        for axis in range(3):
+            real_2d = self._sample_real_2d(axis)
+            c_losses = self._update_critic(axis, real_2d, fake_3d, mask)
+            per_axis.append(c_losses)
+            for k, v in c_losses.items():
+                self.writer.add_scalar(f"train/axis{axis}/{k}", v, global_step)
+
+        losses = {k: sum(d[k] for d in per_axis) / 3 for k in per_axis[0]}
         for k, v in losses.items():
             self.writer.add_scalar(f"train/{k}", v, global_step)
 

@@ -10,6 +10,7 @@ data:
 anchor:
   empty_prob: 0.1
   min_gap: 1
+  k_dist: log_uniform
 
 dl:
   batch_size: 8
@@ -30,7 +31,7 @@ critic:
 
 optimizer:
   lr: 0.0001
-  betas: [0.9, 0.99]
+  betas: [0.5, 0.9]
 
 trainer:
   gp_lambda: 10.0

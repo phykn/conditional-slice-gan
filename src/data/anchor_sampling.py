@@ -7,14 +7,19 @@ class AnchorSpec:
     """Regime probabilities and structural constraints for anchor synthesis.
 
     - `empty_prob`: probability of drawing K=0 (unconditional regime).
-      Otherwise K is drawn uniformly in `[1, max_K]` where
+      Otherwise K is drawn over `[1, max_K]` where
       `max_K = min(D_axis - 1, (D_axis - 1) // min_gap + 1)` — i.e. the largest
       count that still fits under `min_gap` spacing along axis 0.
     - `min_gap`: minimum distance between any two planted positions (>= 1).
+    - `k_dist`: distribution over `[1, max_K]` when the sparse regime is chosen.
+      `"uniform"` draws each K with equal probability; `"log_uniform"` weights
+      `P(K=k) ∝ 1/k`, which oversamples small K to match typical inference usage
+      (users supply 1–4 anchors) while still covering large K.
     """
 
     empty_prob: float
     min_gap: int
+    k_dist: str = "uniform"
 
 
 def max_anchors_under_gap(D_axis: int, min_gap: int) -> int:
@@ -26,7 +31,16 @@ def max_anchors_under_gap(D_axis: int, min_gap: int) -> int:
 def choose_anchor_count(D_axis: int, spec: AnchorSpec) -> int:
     if random.random() < spec.empty_prob:
         return 0
-    return random.randint(1, max_anchors_under_gap(D_axis, spec.min_gap))
+    max_K = max_anchors_under_gap(D_axis, spec.min_gap)
+    if spec.k_dist == "uniform":
+        return random.randint(1, max_K)
+    if spec.k_dist == "log_uniform":
+        ks = list(range(1, max_K + 1))
+        weights = [1.0 / k for k in ks]
+        return random.choices(ks, weights=weights, k=1)[0]
+    raise ValueError(
+        f"unknown k_dist={spec.k_dist!r}; expected 'uniform' or 'log_uniform'"
+    )
 
 
 def sample_positions_with_gap(D_axis: int, K: int, min_gap: int) -> list[int]:

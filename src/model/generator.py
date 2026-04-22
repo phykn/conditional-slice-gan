@@ -17,16 +17,29 @@ class DownBlock3D(nn.Module):
 
 
 class UpBlock3D(nn.Module):
-    def __init__(self, in_ch: int, out_ch: int, act: bool = True) -> None:
+    def __init__(
+        self,
+        in_ch: int,
+        out_ch: int,
+        act: bool = True,
+        norm: bool = True,
+        inject_noise: bool = False,
+    ) -> None:
         super().__init__()
         self.conv = nn.ConvTranspose3d(
-            in_ch, out_ch, kernel_size=4, stride=2, padding=1, bias=False
+            in_ch, out_ch, kernel_size=4, stride=2, padding=1, bias=not norm
         )
-        self.norm = nn.InstanceNorm3d(out_ch, affine=True)
+        self.norm = nn.InstanceNorm3d(out_ch, affine=True) if norm else nn.Identity()
         self.act = nn.ReLU(inplace=True) if act else nn.Identity()
+        self.inject_noise = inject_noise
+        if inject_noise:
+            self.noise_scale = nn.Parameter(torch.zeros(1, out_ch, 1, 1, 1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.act(self.norm(self.conv(x)))
+        h = self.act(self.norm(self.conv(x)))
+        if self.inject_noise:
+            h = h + self.noise_scale * torch.randn_like(h)
+        return h
 
 
 class UNet3DGenerator(nn.Module):
@@ -63,7 +76,15 @@ class UNet3DGenerator(nn.Module):
                 in_c = enc_channels[-1] + noise_channels
             else:
                 in_c = dec_channels[i - 1] + enc_channels[-(i + 1)]
-            decs.append(UpBlock3D(in_c, out_c, act=not is_last))
+            decs.append(
+                UpBlock3D(
+                    in_c,
+                    out_c,
+                    act=not is_last,
+                    norm=not is_last,
+                    inject_noise=not is_last,
+                )
+            )
         self.decoders = nn.ModuleList(decs)
 
         self.final = nn.Conv3d(dec_channels[-1], in_channels, kernel_size=1)

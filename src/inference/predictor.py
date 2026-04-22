@@ -78,14 +78,15 @@ class Predictor:
         mask = torch.from_numpy(mask_np).unsqueeze(0).to(self.device)
 
         if seed is not None:
-            gen = torch.Generator(device=self.device).manual_seed(seed)
+            # Seeds both the bottleneck noise (generated below) and the per-decoder
+            # StyleGAN-B noise sampled inside UNet3DGenerator via torch.randn_like.
+            torch.manual_seed(seed)
             bottleneck = [s // self.netG.total_stride for s in shape]
             noise = torch.randn(
                 1,
                 self.netG.noise_channels,
                 *bottleneck,
                 device=self.device,
-                generator=gen,
             )
         else:
             noise = None

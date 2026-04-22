@@ -45,6 +45,12 @@ def _validate_anchor(cfg: DictConfig) -> None:
     if min_gap < 1:
         raise ValueError(f"anchor.min_gap must be >= 1; got {min_gap}")
 
+    k_dist = cfg.anchor.get("k_dist", "uniform")
+    if k_dist not in ("uniform", "log_uniform"):
+        raise ValueError(
+            f"anchor.k_dist must be 'uniform' or 'log_uniform'; got {k_dist!r}"
+        )
+
 
 def _validate_shape_divisibility(cfg: DictConfig) -> None:
     total_stride = 2 ** len(cfg.generator.enc_channels)
@@ -108,9 +114,11 @@ def build_optimizer(cfg: DictConfig, params: Iterable[Parameter]) -> Optimizer:
 
 
 def build_anchor_spec(cfg: DictConfig) -> AnchorSpec:
+    k_dist = cfg.anchor.get("k_dist", "uniform")
     return AnchorSpec(
         empty_prob=cfg.anchor.empty_prob,
         min_gap=cfg.anchor.min_gap,
+        k_dist=k_dist,
     )
 
 

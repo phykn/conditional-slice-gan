@@ -20,7 +20,7 @@ Real-world slicing (FIB, microtome, serial-section SEM) produces a **handful of 
 
 At each step we **synthesize** anchor conditions on the fly:
 
-1. Draw `K` from two regimes — `K = 0` (empty, probability `empty_prob`) or `K ∈ [1, max_K]` (sparse, remaining probability). `max_K = min(D_axis - 1, (D_axis - 1) // min_gap + 1)` — the largest count that still fits under `min_gap` spacing, so `min_gap` alone caps how many anchors can appear.
+1. Draw `K` from two regimes — `K = 0` (empty, probability `empty_prob`) or `K ∈ [1, max_K]` (sparse, remaining probability). `max_K = min(D_axis - 1, (D_axis - 1) // min_gap + 1)` — the largest count that still fits under `min_gap` spacing, so `min_gap` alone caps how many anchors can appear. `k_dist` picks how K is drawn inside the sparse regime: `uniform`, or `log_uniform` (weights `P(K=k) ∝ 1/k`, oversampling small K to match typical inference usage).
 2. Sample `K` 2D images from the axis-0 pool.
 3. Plant them at `K` distinct positions along axis 0, separated by at least `min_gap`, to build `(sparse, mask)`.
 4. Feed `(sparse, mask)` to the 3D U-Net generator; it emits a full `(B, C, D, H, W)` volume.
@@ -66,7 +66,7 @@ Rules at inference: anchors are planted along axis 0 (fixed); spacing between an
 
 3. Review `configs/default.yaml`. The main knobs:
     - `data` — `train_shape`, `in_channels` (1 or 3), `images.{shared,axis0,axis1,axis2}`
-    - `anchor` — `empty_prob`, `min_gap`
+    - `anchor` — `empty_prob`, `min_gap`, `k_dist` (`uniform` or `log_uniform`)
     - `generator` — `enc_channels`, `dec_channels`, `noise_channels`, `output` (`tanh` or `softmax`)
     - `critic` — `channels`, `kernels`, `strides`, `paddings`
     - `optimizer` — `lr`, `betas`
