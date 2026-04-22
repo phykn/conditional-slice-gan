@@ -1,7 +1,14 @@
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 
-from src.inference.eval import predictor_output_to_uint8, volume_to_axis_batches
+from src.builder import build_critic, build_generator
+from src.inference.eval import (
+    generate_fake_volume,
+    predictor_output_to_uint8,
+    volume_to_axis_batches,
+)
+from src.inference.predictor import Predictor
 
 
 def test_predictor_output_to_uint8_range():
@@ -53,12 +60,6 @@ def test_volume_to_axis_batches_rgb():
     assert (batches[0][:, 0] == 10).all()
     assert (batches[0][:, 1] == 20).all()
     assert (batches[0][:, 2] == 30).all()
-
-
-from src.builder import build_critic, build_generator
-from src.inference.eval import generate_fake_volume
-from src.inference.predictor import Predictor
-from omegaconf import OmegaConf
 
 
 def _tiny_predictor(tmp_path, tiny_cfg) -> Predictor:
