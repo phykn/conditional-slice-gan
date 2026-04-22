@@ -67,7 +67,7 @@ def test_critic_real_batch_size(tiny_cfg):
     t = _trainer(tiny_cfg)
     B = tiny_cfg.dl.batch_size
     for axis in range(3):
-        real, _sparse, _mask = t._sample_batch(axis)
+        real = t._sample_real_2d(axis)
         expected = B * tiny_cfg.data.train_shape[axis]
         assert real.shape[0] == expected, (
             f"axis {axis}: real batch size {real.shape[0]} != B * train_shape[axis] = {expected}"
@@ -108,7 +108,7 @@ def test_sparse_only_along_anchor_axis(tiny_cfg):
     """Sparse/mask should only have nonzero entries at the anchor axis."""
     tiny_cfg.anchor.empty_prob = 0.0
     t = _trainer(tiny_cfg)
-    _real, sparse, mask = t._sample_batch(axis=0)
+    sparse, mask = t._make_anchor_batch()
     # anchor_axis=0, train_shape=(8,8,8). Each planted slice spans full HxW.
     # Check: for each sample, each (h,w) column along axis 0 has the same mask value.
     for b in range(sparse.shape[0]):

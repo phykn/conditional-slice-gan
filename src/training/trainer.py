@@ -129,13 +129,6 @@ class ConditionalSliceGANTrainer:
             count=self.batch_size * S_axis,
         ).to(self.device)
 
-    def _sample_batch(
-        self, axis: int
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        sparse, mask = self._make_anchor_batch()
-        real_2d = self._sample_real_2d(axis)
-        return real_2d, sparse, mask
-
     def _update_critic(
         self,
         axis: int,
