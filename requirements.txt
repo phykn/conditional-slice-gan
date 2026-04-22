@@ -10,3 +10,4 @@ tensorboard
 tqdm
 pytest
 tifffile
+torchmetrics[image]
