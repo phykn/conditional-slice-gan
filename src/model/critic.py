@@ -12,6 +12,7 @@ class DownBlock2D(nn.Module):
         stride: int = 2,
         padding: int = 1,
         act: bool = True,
+        norm: bool = True,
     ) -> None:
         super().__init__()
         self.conv = nn.Conv2d(
@@ -20,12 +21,23 @@ class DownBlock2D(nn.Module):
             kernel_size=kernel_size,
             stride=stride,
             padding=padding,
-            bias=False,
+            bias=not norm,
         )
+        if norm:
+            num_groups = min(8, out_channels)
+            assert out_channels % num_groups == 0, (
+                f"out_channels={out_channels} must be divisible by "
+                f"num_groups={num_groups} for GroupNorm"
+            )
+            self.norm = nn.GroupNorm(
+                num_groups=num_groups, num_channels=out_channels, affine=True
+            )
+        else:
+            self.norm = nn.Identity()
         self.act = nn.LeakyReLU(0.2, inplace=True) if act else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.act(self.conv(x))
+        return self.act(self.norm(self.conv(x)))
 
 
 class Critic2D(nn.Module):
@@ -41,6 +53,7 @@ class Critic2D(nn.Module):
         out_ch = channels[1:]
         n = len(kernels)
         acts = [True] * (n - 1) + [False]
+        norms = [True] * (n - 1) + [False]
 
         self.layers = nn.Sequential(
             *[
@@ -51,9 +64,10 @@ class Critic2D(nn.Module):
                     stride=s,
                     padding=p,
                     act=act,
+                    norm=norm,
                 )
-                for a, b, k, s, p, act in zip(
-                    in_ch, out_ch, kernels, strides, paddings, acts
+                for a, b, k, s, p, act, norm in zip(
+                    in_ch, out_ch, kernels, strides, paddings, acts, norms
                 )
             ]
         )
