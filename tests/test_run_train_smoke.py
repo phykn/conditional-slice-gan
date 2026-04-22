@@ -20,7 +20,6 @@ def _tiny_cfg(img_dir: str) -> dict:
             },
         },
         "anchor": {
-            "axis": 0,
             "empty_prob": 0.33,
             "min_gap": 1,
         },
