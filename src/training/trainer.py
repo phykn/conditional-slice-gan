@@ -9,7 +9,6 @@ from tqdm import tqdm
 
 from ..data.anchor_sampling import (
     AnchorSpec,
-    axis_index,
     choose_anchor_count,
     sample_positions_with_gap,
 )
@@ -87,12 +86,10 @@ class ConditionalSliceGANTrainer:
 
     def _make_anchor_batch(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Draw a batch-shared K, then synthesize (sparse, mask) per sample by
-        placing K 2D images from the anchor-axis pool at distinct positions
-        separated by at least `min_gap`."""
-        anchor_axis = self.anchor.axis
+        placing K 2D images from the axis-0 pool at distinct positions along
+        axis 0, separated by at least `min_gap`."""
         D, H, W = self.train_shape
-        D_axis = self.train_shape[anchor_axis]
-        K = choose_anchor_count(D_axis, self.anchor)
+        K = choose_anchor_count(D, self.anchor)
 
         B = self.batch_size
         sparse = torch.zeros((B, self.in_channels, D, H, W), device=self.device)
@@ -101,15 +98,14 @@ class ConditionalSliceGANTrainer:
         if K == 0:
             return sparse, mask
 
-        imgs = self.image_loader.sample(anchor_axis, B * K).to(self.device)
+        imgs = self.image_loader.sample(0, B * K).to(self.device)
         imgs = imgs.view(B, K, *imgs.shape[1:])
 
         for b in range(B):
-            positions = sample_positions_with_gap(D_axis, K, self.anchor.min_gap)
+            positions = sample_positions_with_gap(D, K, self.anchor.min_gap)
             for k, p in enumerate(positions):
-                slot = (b,) + axis_index(anchor_axis, p)
-                sparse[slot] = imgs[b, k]
-                mask[slot] = 1.0
+                sparse[b, :, p] = imgs[b, k]
+                mask[b, :, p] = 1.0
 
         return sparse, mask
 

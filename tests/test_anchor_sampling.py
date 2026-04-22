@@ -4,33 +4,13 @@ import pytest
 
 from src.data.anchor_sampling import (
     AnchorSpec,
-    axis_index,
     choose_anchor_count,
     sample_positions_with_gap,
 )
 
 
-def _spec(
-    empty_prob: float = 0.0,
-    axis: int = 0,
-    min_gap: int = 1,
-) -> AnchorSpec:
-    return AnchorSpec(axis=axis, empty_prob=empty_prob, min_gap=min_gap)
-
-
-def test_axis_index_axis_0():
-    idx = axis_index(0, 3)
-    assert idx == (slice(None), 3, slice(None), slice(None))
-
-
-def test_axis_index_axis_1():
-    idx = axis_index(1, 5)
-    assert idx == (slice(None), slice(None), 5, slice(None))
-
-
-def test_axis_index_axis_2():
-    idx = axis_index(2, 7)
-    assert idx == (slice(None), slice(None), slice(None), 7)
+def _spec(empty_prob: float = 0.0, min_gap: int = 1) -> AnchorSpec:
+    return AnchorSpec(empty_prob=empty_prob, min_gap=min_gap)
 
 
 def test_choose_anchor_count_empty():

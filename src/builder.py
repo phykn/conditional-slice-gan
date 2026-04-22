@@ -37,10 +37,6 @@ def _validate_generator_depth(cfg: DictConfig) -> None:
 
 
 def _validate_anchor(cfg: DictConfig) -> None:
-    axis = cfg.anchor.axis
-    if axis not in (0, 1, 2):
-        raise ValueError(f"anchor.axis must be 0, 1, or 2; got {axis}")
-
     empty_prob = cfg.anchor.empty_prob
     if not 0.0 <= empty_prob <= 1.0:
         raise ValueError(f"anchor.empty_prob must be in [0, 1]; got {empty_prob}")
@@ -113,7 +109,6 @@ def build_optimizer(cfg: DictConfig, params: Iterable[Parameter]) -> Optimizer:
 
 def build_anchor_spec(cfg: DictConfig) -> AnchorSpec:
     return AnchorSpec(
-        axis=cfg.anchor.axis,
         empty_prob=cfg.anchor.empty_prob,
         min_gap=cfg.anchor.min_gap,
     )

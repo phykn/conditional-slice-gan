@@ -31,7 +31,6 @@ def tiny_cfg(sample_image_dir) -> DictConfig:
                 },
             },
             "anchor": {
-                "axis": 0,
                 "empty_prob": 0.2,
                 "min_gap": 1,
             },

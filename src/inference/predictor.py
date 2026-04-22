@@ -5,7 +5,6 @@ import torch
 from omegaconf import OmegaConf
 
 from ..builder import build_generator
-from ..data.anchor_sampling import axis_index
 from ..data.image_dataset import normalize_image
 
 
@@ -14,7 +13,6 @@ class Predictor:
         self.device = torch.device(device)
         self.cfg = OmegaConf.load(os.path.join(run_dir, "config.yaml"))
         self.train_shape = tuple(self.cfg.data.train_shape)
-        self.anchor_axis = int(self.cfg.anchor.axis)
         self.in_channels = int(self.cfg.data.in_channels)
 
         self.netG = build_generator(self.cfg).to(self.device)
@@ -53,7 +51,6 @@ class Predictor:
         anchor_images: list[np.ndarray] = [],
         anchor_indices: list[int] = [],
         shape: tuple[int, int, int] | None = None,
-        axis: int | None = None,
         seed: int | None = None,
     ) -> np.ndarray:
         if len(anchor_images) != len(anchor_indices):
@@ -63,21 +60,17 @@ class Predictor:
         if len(shape) != 3:
             raise ValueError(f"shape must be (D, H, W); got {shape}")
         self._validate_shape(shape)
-        axis = self.anchor_axis if axis is None else axis
-        if axis not in (0, 1, 2):
-            raise ValueError(f"axis must be 0, 1, or 2; got {axis}")
 
-        D_axis = shape[axis]
+        D = shape[0]
         for k in anchor_indices:
-            if not 0 <= k < D_axis:
-                raise ValueError(f"anchor index {k} out of range [0, {D_axis})")
+            if not 0 <= k < D:
+                raise ValueError(f"anchor index {k} out of range [0, {D})")
 
         sparse_np = np.zeros((self.in_channels,) + shape, dtype=np.float32)
         mask_np = np.zeros((1,) + shape, dtype=np.float32)
         for img, k in zip(anchor_images, anchor_indices):
-            slot = axis_index(axis, k)
-            sparse_np[slot] = self._prepare_anchor(img)
-            mask_np[slot] = 1.0
+            sparse_np[:, k] = self._prepare_anchor(img)
+            mask_np[:, k] = 1.0
 
         sparse = torch.from_numpy(sparse_np).unsqueeze(0).to(self.device)
         mask = torch.from_numpy(mask_np).unsqueeze(0).to(self.device)

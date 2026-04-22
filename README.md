@@ -21,8 +21,8 @@ Real-world slicing (FIB, microtome, serial-section SEM) produces a **handful of 
 At each step we **synthesize** anchor conditions on the fly:
 
 1. Draw `K` from two regimes — `K = 0` (empty, probability `empty_prob`) or `K ∈ [1, max_K]` (sparse, remaining probability). `max_K = min(D_axis - 1, (D_axis - 1) // min_gap + 1)` — the largest count that still fits under `min_gap` spacing, so `min_gap` alone caps how many anchors can appear.
-2. Sample `K` 2D images from the anchor-axis pool.
-3. Plant them at `K` distinct positions along `anchor.axis`, separated by at least `min_gap`, to build `(sparse, mask)`.
+2. Sample `K` 2D images from the axis-0 pool.
+3. Plant them at `K` distinct positions along axis 0, separated by at least `min_gap`, to build `(sparse, mask)`.
 4. Feed `(sparse, mask)` to the 3D U-Net generator; it emits a full `(B, C, D, H, W)` volume.
 5. Update losses (below).
 6. Repeat — new regime, new `K`, new positions, new images every step.
@@ -39,7 +39,7 @@ Two losses split the work:
 
 ## Constraints
 
-**Single anchor axis.** Physical slicing cuts one direction only, so every anchor — both the ones synthesized during training and the ones a user supplies at inference — sits perpendicular to `anchor.axis`. The other two axes are governed solely by their critics' distribution pressure.
+**Single anchor axis.** Physical slicing cuts one direction only, and this codebase fixes that direction to **axis 0**. Every anchor — both the ones synthesized during training and the ones a user supplies at inference — sits perpendicular to axis 0. The other two axes are governed solely by their critics' distribution pressure. Orient your data so the slicing direction is axis 0.
 
 **Minimum gap between anchors (`min_gap`).** Two unrelated anchors placed on adjacent slots are a contradiction for the model: the critic demands smooth transitions, while recon demands "*this here, that there.*" The solution is to spread anchors. `min_gap` enforces this during training by construction (exact sampling via `sample_positions_with_gap`) and is recommended at inference too. For realistic FIB spacing, 4 or 8 is typical.
 
@@ -53,7 +53,7 @@ Input size alone selects the mode — no flag, no separate checkpoint:
 | **1**   | volume containing that slice | minimum-information structural guess |
 | **N ≥ 2** | volume honoring every supplied slice | FIB / serial-section reconstruction |
 
-Rules at inference: anchors must lie on the training `anchor.axis`; spacing between anchors should respect `min_gap`; more anchors ⇒ closer match to the intended structure; no retraining.
+Rules at inference: anchors are planted along axis 0 (fixed); spacing between anchors should respect `min_gap`; more anchors ⇒ closer match to the intended structure; no retraining.
 
 ## Quick start
 
@@ -66,7 +66,7 @@ Rules at inference: anchors must lie on the training `anchor.axis`; spacing betw
 
 3. Review `configs/default.yaml`. The main knobs:
     - `data` — `train_shape`, `in_channels` (1 or 3), `images.{shared,axis0,axis1,axis2}`
-    - `anchor` — `axis`, `empty_prob`, `min_gap`
+    - `anchor` — `empty_prob`, `min_gap`
     - `generator` — `enc_channels`, `dec_channels`, `noise_channels`, `output` (`tanh` or `softmax`)
     - `critic` — `channels`, `kernels`, `strides`, `paddings`
     - `optimizer` — `lr`, `betas`

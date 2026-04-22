@@ -8,7 +8,6 @@ data:
     axis2: null
 
 anchor:
-  axis: 0
   empty_prob: 0.1
   min_gap: 1
 

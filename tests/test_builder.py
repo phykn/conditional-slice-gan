@@ -21,12 +21,6 @@ def test_validate_config_mismatch(tiny_cfg):
         validate_config(tiny_cfg)
 
 
-def test_check_axis_range(tiny_cfg):
-    tiny_cfg.anchor.axis = 3
-    with pytest.raises(ValueError, match="anchor.axis"):
-        validate_config(tiny_cfg)
-
-
 def test_check_empty_prob_range(tiny_cfg):
     tiny_cfg.anchor.empty_prob = 1.5
     with pytest.raises(ValueError, match="empty_prob"):

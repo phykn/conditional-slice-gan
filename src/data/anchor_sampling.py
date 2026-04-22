@@ -6,25 +6,15 @@ from dataclasses import dataclass
 class AnchorSpec:
     """Regime probabilities and structural constraints for anchor synthesis.
 
-    - `axis`: spatial axis (0/1/2) along which anchors are planted.
     - `empty_prob`: probability of drawing K=0 (unconditional regime).
       Otherwise K is drawn uniformly in `[1, max_K]` where
       `max_K = min(D_axis - 1, (D_axis - 1) // min_gap + 1)` — i.e. the largest
-      count that still fits under `min_gap` spacing along the anchor axis.
+      count that still fits under `min_gap` spacing along axis 0.
     - `min_gap`: minimum distance between any two planted positions (>= 1).
     """
 
-    axis: int
     empty_prob: float
     min_gap: int
-
-
-def axis_index(anchor_axis: int, k: int) -> tuple:
-    """Index tuple selecting slice k along spatial `anchor_axis` of a (C, D, H, W) array.
-    Works on both torch tensors and numpy arrays."""
-    return (slice(None),) + tuple(
-        k if i == anchor_axis else slice(None) for i in range(3)
-    )
 
 
 def max_anchors_under_gap(D_axis: int, min_gap: int) -> int:
