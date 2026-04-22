@@ -6,6 +6,7 @@ from omegaconf import OmegaConf
 
 from ..builder import build_generator
 from ..data.anchor_sampling import axis_index
+from ..data.image_dataset import normalize_image
 
 
 class Predictor:
@@ -34,11 +35,13 @@ class Predictor:
                     f"shape[{i}]={s} not divisible by total stride {stride}"
                 )
 
-    def _to_chw(self, img: np.ndarray) -> np.ndarray:
-        if img.ndim == 2:
-            return img[None, :, :]
-        if img.ndim == 3 and img.shape[-1] == self.in_channels:
-            return np.transpose(img, (2, 0, 1))
+    def _prepare_anchor(self, img: np.ndarray) -> np.ndarray:
+        """uint8 (H, W) / (H, W, C) anchor -> (C, H, W) float32 in [-1, 1]."""
+        normed = normalize_image(img, self.in_channels)
+        if normed.ndim == 2:
+            return normed[None, :, :]
+        if normed.ndim == 3 and normed.shape[-1] == self.in_channels:
+            return np.transpose(normed, (2, 0, 1))
         raise ValueError(
             f"anchor image shape {img.shape} not interpretable; "
             f"expected (H, W) or (H, W, {self.in_channels})"
@@ -73,7 +76,7 @@ class Predictor:
         mask_np = np.zeros((1,) + shape, dtype=np.float32)
         for img, k in zip(anchor_images, anchor_indices):
             slot = axis_index(axis, k)
-            sparse_np[slot] = self._to_chw(img.astype(np.float32))
+            sparse_np[slot] = self._prepare_anchor(img)
             mask_np[slot] = 1.0
 
         sparse = torch.from_numpy(sparse_np).unsqueeze(0).to(self.device)

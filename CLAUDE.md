@@ -52,6 +52,6 @@ RGB is enabled by setting `data.in_channels` and `critic.channels[0]` to `3` (en
 
 ### Inference
 
-`src/inference/predictor.py::Predictor.predict(anchor_images, anchor_indices, shape=None, axis=None, seed=None)` loads a trained run and generates a volume. Shape defaults to train shape; user-supplied shape must be ≤ 2× per-dim and divisible by total stride. There is **no inference-time anchor overwrite** — anchor fidelity is driven only by the L1 training loss, so neighbors remain consistent with predicted anchor values.
+`src/inference/predictor.py::Predictor.predict(anchor_images, anchor_indices, shape=None, axis=None, seed=None)` loads a trained run and generates a volume. `anchor_images` are **uint8** arrays (`(H, W)` or `(H, W, C)`, 0–255); the predictor normalizes to `[-1, 1]` and applies `sdimg.image` gray↔RGB conversion to match `in_channels`. Shape defaults to train shape; user-supplied shape must be ≤ 2× per-dim and divisible by total stride. There is **no inference-time anchor overwrite** — anchor fidelity is driven only by the L1 training loss, so neighbors remain consistent with predicted anchor values.
 
-`src/inference/io.py` provides `load_anchor_spec` (YAML parsing) and `save_volume` (always `.npy`). Image loading for anchors is handled by `src/data/image_dataset.py::load_image` with `in_channels`-aware color conversion.
+`src/inference/io.py` provides `load_anchor_spec` (YAML parsing) and `save_volume` (always `.npy`).

@@ -20,9 +20,10 @@ def _list_images(directory: str) -> list[str]:
     return paths
 
 
-def load_image(path: str, in_channels: int) -> np.ndarray:
-    """Load a 2D image as (H, W) for grayscale or (H, W, C) for color, in [-1, 1]."""
-    img = imread(path)
+def normalize_image(img: np.ndarray, in_channels: int) -> np.ndarray:
+    """uint8 (H, W) or (H, W, C) -> float32 in [-1, 1], color-converted to in_channels."""
+    if img.dtype != np.uint8:
+        raise ValueError(f"image dtype must be uint8 (0-255); got {img.dtype}")
     if in_channels == 1:
         if img.ndim == 3:
             img = to_gray(img)
@@ -32,6 +33,11 @@ def load_image(path: str, in_channels: int) -> np.ndarray:
     else:
         raise ValueError(f"in_channels must be 1 or 3; got {in_channels}")
     return (img.astype(np.float32) / 127.5) - 1.0
+
+
+def load_image(path: str, in_channels: int) -> np.ndarray:
+    """Load a 2D image as (H, W) for grayscale or (H, W, C) for color, in [-1, 1]."""
+    return normalize_image(imread(path), in_channels)
 
 
 def _axis_crop_hw(axis: int, train_shape: tuple[int, int, int]) -> tuple[int, int]:

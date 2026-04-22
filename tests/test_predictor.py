@@ -28,7 +28,7 @@ def test_predict_unconditional(tmp_path, tiny_cfg):
 
 def test_predict_sparse(tmp_path, tiny_cfg):
     p = Predictor(_make_run_dir(tmp_path, tiny_cfg), device="cpu")
-    anchor = np.zeros((8, 8), dtype=np.float32)
+    anchor = np.zeros((8, 8), dtype=np.uint8)
     out = p.predict(anchor_images=[anchor], anchor_indices=[0], seed=0)
     assert out.shape == (8, 8, 8, 1)
     # Plumbing only — no pixel-exact assertion (training objective, not inference guarantee).
@@ -37,7 +37,7 @@ def test_predict_sparse(tmp_path, tiny_cfg):
 def test_predict_full_identity(tmp_path, tiny_cfg):
     p = Predictor(_make_run_dir(tmp_path, tiny_cfg), device="cpu")
     D = 8
-    anchors = [np.full((8, 8), i / D, dtype=np.float32) for i in range(D)]
+    anchors = [np.full((8, 8), i * 255 // (D - 1), dtype=np.uint8) for i in range(D)]
     out = p.predict(
         anchor_images=anchors,
         anchor_indices=list(range(D)),
