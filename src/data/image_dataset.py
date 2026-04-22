@@ -21,16 +21,14 @@ def _list_images(directory: str) -> list[str]:
 
 
 def load_image(path: str, in_channels: int) -> np.ndarray:
-    """Load a 2D image and return (C, H, W) float32 in [-1, 1]."""
+    """Load a 2D image as (H, W) for grayscale or (H, W, C) for color, in [-1, 1]."""
     img = imread(path)
     if in_channels == 1:
         if img.ndim == 3:
             img = to_gray(img)
-        img = img[None, :, :]
     elif in_channels == 3:
         if img.ndim == 2:
             img = to_rgb(img)
-        img = np.transpose(img, (2, 0, 1))
     else:
         raise ValueError(f"in_channels must be 1 or 3; got {in_channels}")
     return (img.astype(np.float32) / 127.5) - 1.0
@@ -76,7 +74,7 @@ class ImageDataset:
     ) -> None:
         ch, cw = _axis_crop_hw(axis, self.train_shape)
         for p, img in zip(paths, loaded):
-            _, ih, iw = img.shape
+            ih, iw = img.shape[:2]
             if ih < ch or iw < cw:
                 raise ValueError(
                     f"image {p} of shape ({ih},{iw}) smaller than "
@@ -89,15 +87,16 @@ class ImageDataset:
         out = np.empty((count, self.in_channels, ch, cw), dtype=np.float32)
         for i in range(count):
             img = pool[np.random.randint(len(pool))]
-            _, ih, iw = img.shape
+            ih, iw = img.shape[:2]
             y0 = np.random.randint(0, ih - ch + 1)
             x0 = np.random.randint(0, iw - cw + 1)
-            crop = img[:, y0 : y0 + ch, x0 : x0 + cw]
+            crop = img[y0 : y0 + ch, x0 : x0 + cw]
             if np.random.rand() < 0.5:
-                crop = crop[:, ::-1, :]
+                crop = crop[::-1]
             if np.random.rand() < 0.5:
-                crop = crop[:, :, ::-1]
-            out[i] = np.ascontiguousarray(crop)
+                crop = crop[:, ::-1]
+            chw = crop[None, :, :] if crop.ndim == 2 else crop.transpose(2, 0, 1)
+            out[i] = np.ascontiguousarray(chw)
         return torch.from_numpy(out)
 
 

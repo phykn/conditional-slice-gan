@@ -10,12 +10,9 @@ python run_train.py                                                 # uses confi
 python run_train.py --config configs/default.yaml --images-dir data/my_pool
 ```
 
-Prediction entry point:
-```bash
-python run_predict.py --run-dir run/<timestamp> --anchors anchors.yaml --output out.npy
-```
+Prediction is invoked programmatically via `src/inference/predictor.py::Predictor` (see `notebooks/05_predict.ipynb`).
 
-Dependencies: `pip install -r requirements.txt` (PyTorch from the CUDA 12.6 wheel index; `tifffile` for TIFF volumes).
+Dependencies: `pip install -r requirements.txt` (PyTorch from the CUDA 12.6 wheel index).
 
 Tests: `pytest tests/ -v` (CPU-only, <30s).
 
@@ -57,4 +54,4 @@ RGB is enabled by setting `data.in_channels` and `critic.channels[0]` to `3` (en
 
 `src/inference/predictor.py::Predictor.predict(anchor_images, anchor_indices, shape=None, axis=None, seed=None)` loads a trained run and generates a volume. Shape defaults to train shape; user-supplied shape must be ≤ 2× per-dim and divisible by total stride. There is **no inference-time anchor overwrite** — anchor fidelity is driven only by the L1 training loss, so neighbors remain consistent with predicted anchor values.
 
-`run_predict.py` wraps this with a YAML anchor-spec CLI. `src/inference/io.py` handles image loading (with `in_channels`-aware grayscale conversion) and volume output dispatch (`.npy` vs `.tif/.tiff`).
+`src/inference/io.py` provides `load_anchor_spec` (YAML parsing) and `save_volume` (always `.npy`). Image loading for anchors is handled by `src/data/image_dataset.py::load_image` with `in_channels`-aware color conversion.

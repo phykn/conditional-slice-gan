@@ -61,7 +61,6 @@ def _validate_shape_divisibility(cfg: DictConfig) -> None:
 
 def _validate_image_pools(cfg: DictConfig) -> None:
     images = cfg.data.images
-    # resolve_pools raises ValueError listing unresolved axes.
     resolve_pools(
         shared=images.shared,
         axis0=images.axis0,

@@ -49,7 +49,6 @@ class UNet3DGenerator(nn.Module):
         self.noise_channels = noise_channels
         self.output = output
 
-        # Encoder: (C+1) → enc_channels[0] → ... → enc_channels[-1]
         encs = []
         in_c = in_channels + 1
         for out_c in enc_channels:
@@ -57,9 +56,6 @@ class UNet3DGenerator(nn.Module):
             in_c = out_c
         self.encoders = nn.ModuleList(encs)
 
-        # Decoder: input to block i is (prev_dec_out + noise (first only) + skip from matching encoder)
-        # First decoder input = enc_channels[-1] + noise_channels
-        # Subsequent decoder input = dec_channels[i-1] + enc_channels[-(i+1)]
         decs = []
         for i, out_c in enumerate(dec_channels):
             is_last = i == len(dec_channels) - 1
@@ -106,14 +102,13 @@ class UNet3DGenerator(nn.Module):
         assert mask.shape == (B, 1, D, H, W)
         self._check_shape(D, H, W)
 
-        x = torch.cat([sparse, mask], dim=1)  # (B, C+1, D, H, W)
+        x = torch.cat([sparse, mask], dim=1)
 
         skips: list[torch.Tensor] = []
         for enc in self.encoders:
             x = enc(x)
             skips.append(x)
 
-        # Bottleneck noise injection (concat on channel)
         if noise is None:
             noise = torch.randn(
                 B, self.noise_channels, *x.shape[2:], device=x.device, dtype=x.dtype
@@ -122,7 +117,6 @@ class UNet3DGenerator(nn.Module):
             assert noise.shape == (B, self.noise_channels, *x.shape[2:])
         x = torch.cat([x, noise], dim=1)
 
-        # Decoder with skips (skip from matching encoder level — reverse order)
         for i, dec in enumerate(self.decoders):
             x = dec(x)
             if i < len(self.decoders) - 1:

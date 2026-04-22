@@ -22,28 +22,28 @@ def _make_run_dir(tmp_path, tiny_cfg) -> str:
 def test_predict_unconditional(tmp_path, tiny_cfg):
     p = Predictor(_make_run_dir(tmp_path, tiny_cfg), device="cpu")
     out = p.predict(anchor_images=[], anchor_indices=[], seed=0)
-    assert out.shape == (1, 8, 8, 8)
+    assert out.shape == (8, 8, 8, 1)
     assert out.dtype == np.float32
 
 
 def test_predict_sparse(tmp_path, tiny_cfg):
     p = Predictor(_make_run_dir(tmp_path, tiny_cfg), device="cpu")
-    anchor = np.zeros((1, 8, 8), dtype=np.float32)
+    anchor = np.zeros((8, 8), dtype=np.float32)
     out = p.predict(anchor_images=[anchor], anchor_indices=[0], seed=0)
-    assert out.shape == (1, 8, 8, 8)
+    assert out.shape == (8, 8, 8, 1)
     # Plumbing only — no pixel-exact assertion (training objective, not inference guarantee).
 
 
 def test_predict_full_identity(tmp_path, tiny_cfg):
     p = Predictor(_make_run_dir(tmp_path, tiny_cfg), device="cpu")
     D = 8
-    anchors = [np.full((1, 8, 8), i / D, dtype=np.float32) for i in range(D)]
+    anchors = [np.full((8, 8), i / D, dtype=np.float32) for i in range(D)]
     out = p.predict(
         anchor_images=anchors,
         anchor_indices=list(range(D)),
         seed=0,
     )
-    assert out.shape == (1, 8, 8, 8)
+    assert out.shape == (8, 8, 8, 1)
 
 
 def test_predict_rejects_shape_over_2x(tmp_path, tiny_cfg):
@@ -57,7 +57,7 @@ def test_predict_rejects_shape_over_2x(tmp_path, tiny_cfg):
 def test_predict_accepts_2x(tmp_path, tiny_cfg):
     p = Predictor(_make_run_dir(tmp_path, tiny_cfg), device="cpu")
     out = p.predict(anchor_images=[], anchor_indices=[], shape=(16, 16, 16), seed=0)
-    assert out.shape == (1, 16, 16, 16)
+    assert out.shape == (16, 16, 16, 1)
 
 
 def test_predict_seed_reproducible(tmp_path, tiny_cfg):

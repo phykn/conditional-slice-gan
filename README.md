@@ -79,10 +79,7 @@ Rules at inference: anchors must lie on the training `anchor.axis`; spacing betw
     python run_train.py --config configs/default.yaml --images-dir data/my_pool
     ```
 
-5. Predict:
-    ```bash
-    python run_predict.py --run-dir run/<timestamp> --anchors anchors.yaml --output out.npy
-    ```
+5. Predict: programmatically via `src/inference/predictor.py::Predictor` — see `notebooks/05_predict.ipynb` for a worked example.
 
 ## Monitoring
 
@@ -111,13 +108,12 @@ Set `data.in_channels: 3` and `critic.channels[0]: 3`. The generator handles the
 ```
 conditional-slice-gan/
 ├── run_train.py
-├── run_predict.py
 ├── requirements.txt
 ├── configs/default.yaml
 ├── src/
 │   ├── builder.py                  # composition root (validate_config + build_* fns)
 │   ├── data/
-│   │   ├── image_dataset.py        # per-axis 2D image pools
+│   │   ├── image_dataset.py        # per-axis 2D image pools, load_image
 │   │   └── anchor_sampling.py      # choose_anchor_count, sample_positions_with_gap
 │   ├── model/
 │   │   ├── generator.py            # UNet3DGenerator
@@ -127,7 +123,8 @@ conditional-slice-gan/
 │   │   └── penalty.py              # gradient_penalty
 │   └── inference/
 │       ├── predictor.py            # Predictor
-│       └── io.py                   # anchor image / volume I/O
+│       └── io.py                   # load_anchor_spec, save_volume (.npy)
+├── notebooks/                      # interactive walkthroughs (dataset / model / loss / trainer / predict)
 └── tests/                          # pytest suite (CPU-only)
 ```
 

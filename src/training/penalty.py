@@ -6,8 +6,8 @@ from ..model.critic import Critic2D
 
 def gradient_penalty(
     netC: Critic2D,
-    real_data: torch.Tensor,  # (B, C, H, W)
-    fake_data: torch.Tensor,  # (B*S, C, H, W) — slice-expanded
+    real_data: torch.Tensor,
+    fake_data: torch.Tensor,
     gp_lambda: float = 10.0,
 ) -> torch.Tensor:
     """WGAN-GP penalty. Fake batch is subsampled to match real batch size.
