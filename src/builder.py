@@ -134,8 +134,6 @@ def build_trainer(
         optCs=optCs,
         image_loader=image_loader,
         anchor=build_anchor_spec(cfg),
-        train_shape=tuple(cfg.data.train_shape),
-        in_channels=cfg.data.in_channels,
         batch_size=cfg.dl.batch_size,
         gp_lambda=cfg.trainer.gp_lambda,
         recon_lambda=cfg.trainer.recon_lambda,

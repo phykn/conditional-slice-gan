@@ -54,8 +54,6 @@ class ConditionalSliceGANTrainer:
         optCs: list[Optimizer],
         image_loader: ImageDataset,
         anchor: AnchorSpec,
-        train_shape: tuple[int, int, int],
-        in_channels: int,
         batch_size: int,
         gp_lambda: float = 10.0,
         recon_lambda: float = 10.0,
@@ -72,8 +70,8 @@ class ConditionalSliceGANTrainer:
         self.optCs = optCs
         self.image_loader = image_loader
         self.anchor = anchor
-        self.train_shape = tuple(train_shape)
-        self.in_channels = in_channels
+        self.train_shape = image_loader.train_shape
+        self.in_channels = image_loader.in_channels
         self.batch_size = batch_size
         self.gp_lambda = gp_lambda
         self.recon_lambda = recon_lambda
