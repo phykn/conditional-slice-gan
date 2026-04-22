@@ -124,7 +124,7 @@ conditional-slice-gan/
 │   │   └── penalty.py              # gradient_penalty
 │   └── inference/
 │       ├── predictor.py            # Predictor
-│       └── io.py                   # load_anchor_spec, save_volume (.npy)
+│       └── eval.py                 # FID sweep helpers
 ├── notebooks/                      # interactive walkthroughs (dataset / model / loss / trainer / predict)
 └── tests/                          # pytest suite (CPU-only)
 ```

@@ -36,12 +36,11 @@ Everything is composed by explicit `build_*` functions in `src/builder.py` drive
 
 `validate_config(cfg)` asserts at startup:
 - `cfg.data.in_channels == cfg.critic.channels[0]` (generator output channels are projected via an internal 1×1 Conv3d, so `dec_channels[-1]` is a feature width, not image channels).
-- `len(cfg.generator.enc_channels) == len(cfg.generator.dec_channels)`.
-- `cfg.anchor.empty_prob ∈ [0, 1]`.
-- `cfg.anchor.min_gap ≥ 1`. The sparse-regime K upper bound is derived from `min_gap` and `D_axis`.
-- `cfg.anchor.k_dist ∈ {"uniform", "log_uniform"}`. `log_uniform` weights `P(K=k) ∝ 1/k`, oversampling small K to match typical inference usage (users tend to supply 1–4 anchors).
 - `cfg.data.train_shape` divisible by total stride (`2 ** len(enc_channels)`).
 - `cfg.data.images` must resolve to a per-axis pool for each of 0/1/2 (via `data.images.shared` fallback or per-axis `axis0`/`axis1`/`axis2` overrides).
+- Anchor invariants via `AnchorSpec.__post_init__`: `empty_prob ∈ [0, 1]`, `min_gap ≥ 1` (sparse-regime K upper bound is derived from `min_gap` and `D_axis`), and `k_dist ∈ {"uniform", "log_uniform"}` (`log_uniform` weights `P(K=k) ∝ 1/k`, oversampling small K to match typical inference usage — users tend to supply 1–4 anchors).
+
+The encoder/decoder length match is enforced by `UNet3DGenerator.__init__`, which `build_generator` triggers immediately after `validate_config`.
 
 RGB is enabled by setting `data.in_channels` and `critic.channels[0]` to `3` (encoder input = `3 + 1 mask = 4`, projected in by the first encoder block).
 
@@ -57,4 +56,3 @@ Two noise sources feed the generator: (a) a `noise_channels`-wide Gaussian laten
 
 `src/inference/predictor.py::Predictor.predict(anchor_images, anchor_indices, shape=None, axis=None, seed=None)` loads a trained run and generates a volume. `anchor_images` are **uint8** arrays (`(H, W)` or `(H, W, C)`, 0–255); the predictor normalizes to `[-1, 1]` and applies `sdimg.image` gray↔RGB conversion to match `in_channels`. Shape defaults to train shape; user-supplied shape must be ≤ 2× per-dim and divisible by total stride. There is **no inference-time anchor overwrite** — anchor fidelity is driven only by the L1 training loss, so neighbors remain consistent with predicted anchor values. When `seed` is provided the predictor sets the **global** `torch.manual_seed` — this is required because the per-decoder noise injections inside `UNet3DGenerator` sample via `torch.randn_like`, which ignores per-call `Generator` objects.
 
-`src/inference/io.py` provides `load_anchor_spec` (YAML parsing) and `save_volume` (always `.npy`).
