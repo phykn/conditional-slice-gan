@@ -14,8 +14,7 @@ from .training.trainer import ConditionalSliceGANTrainer
 
 def validate_config(cfg: DictConfig) -> None:
     _validate_channels(cfg)
-    _validate_generator_depth(cfg)
-    _validate_anchor(cfg)
+    build_anchor_spec(cfg)
     _validate_shape_divisibility(cfg)
     _validate_image_pools(cfg)
 
@@ -26,29 +25,6 @@ def _validate_channels(cfg: DictConfig) -> None:
     if critic_in != in_channels:
         raise ValueError(
             f"critic.channels[0]={critic_in} must equal data.in_channels={in_channels}"
-        )
-
-
-def _validate_generator_depth(cfg: DictConfig) -> None:
-    if len(cfg.generator.enc_channels) != len(cfg.generator.dec_channels):
-        raise ValueError(
-            "generator.enc_channels and dec_channels must have same length"
-        )
-
-
-def _validate_anchor(cfg: DictConfig) -> None:
-    empty_prob = cfg.anchor.empty_prob
-    if not 0.0 <= empty_prob <= 1.0:
-        raise ValueError(f"anchor.empty_prob must be in [0, 1]; got {empty_prob}")
-
-    min_gap = cfg.anchor.min_gap
-    if min_gap < 1:
-        raise ValueError(f"anchor.min_gap must be >= 1; got {min_gap}")
-
-    k_dist = cfg.anchor.get("k_dist", "uniform")
-    if k_dist not in ("uniform", "log_uniform"):
-        raise ValueError(
-            f"anchor.k_dist must be 'uniform' or 'log_uniform'; got {k_dist!r}"
         )
 
 
