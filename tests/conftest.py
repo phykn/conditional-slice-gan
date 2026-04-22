@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import torch
 from omegaconf import DictConfig, OmegaConf
 
 
@@ -62,3 +63,17 @@ def tiny_cfg(sample_image_dir) -> DictConfig:
             "device": "cpu",
         }
     )
+
+
+@pytest.fixture
+def mock_run_dir(tmp_path, tiny_cfg):
+    """Materialize a run directory with config and random weights for a tiny model."""
+    from src.builder import build_critic, build_generator
+
+    run_dir = tmp_path / "run_mock"
+    (run_dir / "weights").mkdir(parents=True)
+    OmegaConf.save(tiny_cfg, run_dir / "config.yaml")
+    torch.save(build_generator(tiny_cfg).state_dict(), run_dir / "weights" / "generator.pth")
+    for i in range(3):
+        torch.save(build_critic(tiny_cfg).state_dict(), run_dir / "weights" / f"critic_{i}.pth")
+    return run_dir
