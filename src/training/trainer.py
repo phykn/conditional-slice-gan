@@ -57,6 +57,25 @@ def _recon_loss(
     return (mask * (fake - target).abs()).sum() / (denom * fake.shape[1])
 
 
+def _custom_scalar_layout() -> dict:
+    per_axis_metrics = ["critic_real_score", "critic_fake_score", "wass_dist", "gp", "loss"]
+    return {
+        "per_axis": {
+            m: ["Multiline", [f"train/axis{a}/{m}" for a in range(3)]]
+            for m in per_axis_metrics
+        },
+        "averaged": {
+            "critic_scores": ["Multiline", ["train/critic_real_score", "train/critic_fake_score"]],
+            "wass_dist": ["Multiline", ["train/wass_dist"]],
+            "gp": ["Multiline", ["train/gp"]],
+            "critic_loss": ["Multiline", ["train/loss"]],
+        },
+        "generator": {
+            "losses": ["Multiline", ["train/generator_loss", "train/adv_loss", "train/recon_loss"]],
+        },
+    }
+
+
 class ConditionalSliceGANTrainer:
     def __init__(
         self,
@@ -96,6 +115,7 @@ class ConditionalSliceGANTrainer:
         os.makedirs(os.path.join(self.save_dir, "logs"), exist_ok=True)
         os.makedirs(os.path.join(self.save_dir, "weights"), exist_ok=True)
         self.writer = SummaryWriter(os.path.join(self.save_dir, "logs"))
+        self.writer.add_custom_scalars(_custom_scalar_layout())
 
     def _make_anchor_batch(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Draw a batch-shared K, then synthesize (sparse, mask) per sample by
