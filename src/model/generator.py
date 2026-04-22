@@ -45,11 +45,11 @@ class UpBlock3D(nn.Module):
 class UNet3DGenerator(nn.Module):
     def __init__(
         self,
-        in_channels: int = 1,
-        enc_channels: list[int] = [64, 128, 256, 512],
-        dec_channels: list[int] = [512, 256, 128, 64],
-        noise_channels: int = 32,
-        output: str = "tanh",
+        in_channels: int,
+        enc_channels: list[int],
+        dec_channels: list[int],
+        noise_channels: int,
+        output: str,
     ) -> None:
         super().__init__()
         assert output in ("tanh", "softmax"), "output must be 'tanh' or 'softmax'"

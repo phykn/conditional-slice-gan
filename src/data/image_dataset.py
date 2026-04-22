@@ -37,7 +37,10 @@ def normalize_image(img: np.ndarray, in_channels: int) -> np.ndarray:
 
 def load_image(path: str, in_channels: int) -> np.ndarray:
     """Load a 2D image as (H, W) for grayscale or (H, W, C) for color, in [-1, 1]."""
-    return normalize_image(imread(path), in_channels)
+    try:
+        return normalize_image(imread(path), in_channels)
+    except ValueError as e:
+        raise ValueError(f"failed to load image {path}: {e}") from e
 
 
 def _axis_crop_hw(axis: int, train_shape: tuple[int, int, int]) -> tuple[int, int]:
@@ -65,10 +68,15 @@ class ImageDataset:
         self.train_shape = tuple(train_shape)
         self.in_channels = in_channels
 
+        # Decode each unique directory once, then alias per-axis views into it.
+        cache: dict[str, tuple[list[str], list[np.ndarray]]] = {}
         self._images: dict[int, list[np.ndarray]] = {}
         for a, directory in pools.items():
-            paths = _list_images(directory)
-            loaded = [load_image(p, in_channels) for p in paths]
+            if directory not in cache:
+                paths = _list_images(directory)
+                loaded = [load_image(p, in_channels) for p in paths]
+                cache[directory] = (paths, loaded)
+            paths, loaded = cache[directory]
             self._validate_pool_sizes(a, loaded, paths)
             self._images[a] = loaded
 

@@ -43,10 +43,10 @@ class DownBlock2D(nn.Module):
 class Critic2D(nn.Module):
     def __init__(
         self,
-        channels: list[int] = [1, 64, 128, 256, 512, 1],
-        kernels: list[int] = [4, 4, 4, 4, 4],
-        strides: list[int] = [2, 2, 2, 2, 2],
-        paddings: list[int] = [1, 1, 1, 1, 0],
+        channels: list[int],
+        kernels: list[int],
+        strides: list[int],
+        paddings: list[int],
     ) -> None:
         super().__init__()
         in_ch = channels[:-1]

@@ -30,9 +30,9 @@ def test_volume_to_axis_batches_grayscale_shapes():
     vol = np.zeros((4, 5, 6), dtype=np.uint8)
     batches = volume_to_axis_batches(vol, in_channels=1, device=torch.device("cpu"))
     assert len(batches) == 3
-    assert batches[0].shape == (4, 3, 5, 6)   # axis-0: D slices of (H, W)
-    assert batches[1].shape == (5, 3, 4, 6)   # axis-1: H slices of (D, W)
-    assert batches[2].shape == (6, 3, 4, 5)   # axis-2: W slices of (D, H)
+    assert batches[0].shape == (4, 3, 5, 6)  # axis-0: D slices of (H, W)
+    assert batches[1].shape == (5, 3, 4, 6)  # axis-1: H slices of (D, W)
+    assert batches[2].shape == (6, 3, 4, 5)  # axis-2: W slices of (D, H)
     for b in batches:
         assert b.dtype == torch.uint8
 

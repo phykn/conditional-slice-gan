@@ -34,9 +34,7 @@ def _slice_along_axis(volume: torch.Tensor, axis: int) -> torch.Tensor:
     raise ValueError(f"axis must be 0, 1, or 2; got {axis}")
 
 
-def _drop_axis0_anchors(
-    slices_2d: torch.Tensor, mask: torch.Tensor
-) -> torch.Tensor:
+def _drop_axis0_anchors(slices_2d: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     """Filter out axis-0 slices at anchor positions.
 
     ``slices_2d`` is ``(B*D, C, H, W)`` from ``_slice_along_axis(..., 0)`` — flattened
@@ -58,20 +56,32 @@ def _recon_loss(
 
 
 def _custom_scalar_layout() -> dict:
-    per_axis_metrics = ["critic_real_score", "critic_fake_score", "wass_dist", "gp", "loss"]
+    per_axis_metrics = [
+        "critic_real_score",
+        "critic_fake_score",
+        "wass_dist",
+        "gp",
+        "loss",
+    ]
     return {
         "per_axis": {
             m: ["Multiline", [f"axis{a}/{m}" for a in range(3)]]
             for m in per_axis_metrics
         },
         "averaged": {
-            "critic_scores": ["Multiline", ["avg/critic_real_score", "avg/critic_fake_score"]],
+            "critic_scores": [
+                "Multiline",
+                ["avg/critic_real_score", "avg/critic_fake_score"],
+            ],
             "wass_dist": ["Multiline", ["avg/wass_dist"]],
             "gp": ["Multiline", ["avg/gp"]],
             "critic_loss": ["Multiline", ["avg/loss"]],
         },
         "generator": {
-            "losses": ["Multiline", ["gen/generator_loss", "gen/adv_loss", "gen/recon_loss"]],
+            "losses": [
+                "Multiline",
+                ["gen/generator_loss", "gen/adv_loss", "gen/recon_loss"],
+            ],
         },
     }
 

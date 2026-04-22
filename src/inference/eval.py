@@ -38,9 +38,9 @@ def volume_to_axis_batches(
     # axis 1: iterate along H -> slices are (D, W, C)
     # axis 2: iterate along W -> slices are (D, H, C)
     for axis in (0, 1, 2):
-        slices = np.moveaxis(vol4, axis, 0)           # (N, h, w, C)
+        slices = np.moveaxis(vol4, axis, 0)  # (N, h, w, C)
         t = torch.from_numpy(np.ascontiguousarray(slices))
-        t = t.permute(0, 3, 1, 2).contiguous()        # (N, C, h, w)
+        t = t.permute(0, 3, 1, 2).contiguous()  # (N, C, h, w)
         if in_channels == 1:
             t = t.expand(-1, 3, -1, -1).contiguous()  # replicate channels 1 -> 3
         batches.append(t.to(device))
@@ -60,13 +60,9 @@ def generate_fake_volume(
     if not 0 <= k <= D:
         raise ValueError(f"k={k} out of range [0, {D}]")
     rng = np.random.default_rng(seed)
-    if k == 0:
-        anchor_images: list[np.ndarray] = []
-        anchor_indices: list[int] = []
-    else:
-        idx = rng.choice(D, size=k, replace=False)
-        anchor_images = [gt_volume[int(i)] for i in idx]
-        anchor_indices = [int(i) for i in idx]
+    idx = rng.choice(D, size=k, replace=False)
+    anchor_images = [gt_volume[int(i)] for i in idx]
+    anchor_indices = [int(i) for i in idx]
 
     out_float = predictor.predict(
         anchor_images=anchor_images,
@@ -102,7 +98,7 @@ def sweep_fid_vs_anchor_count(
 
     iterator = enumerate(k_list)
     if progress:
-        iterator = tqdm(list(iterator), desc="FID sweep", total=len(k_list))
+        iterator = tqdm(iterator, desc="FID sweep", total=len(k_list))
 
     for k_index, k in iterator:
         fid = FrechetInceptionDistance(feature=2048, normalize=False).to(dev)
@@ -113,6 +109,6 @@ def sweep_fid_vs_anchor_count(
             fake_vol = generate_fake_volume(predictor, gt_volume, k=k, seed=seed)
             for batch in volume_to_axis_batches(fake_vol, predictor.in_channels, dev):
                 fid.update(batch, real=False)
-        value = float(fid.compute().item())
+        value = fid.compute().item()
         results.append((int(k), value))
     return results

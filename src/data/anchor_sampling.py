@@ -1,6 +1,8 @@
 import random
 from dataclasses import dataclass
 
+_VALID_K_DISTS = ("uniform", "log_uniform")
+
 
 @dataclass(frozen=True)
 class AnchorSpec:
@@ -21,6 +23,16 @@ class AnchorSpec:
     min_gap: int
     k_dist: str = "uniform"
 
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.empty_prob <= 1.0:
+            raise ValueError(f"empty_prob must be in [0, 1]; got {self.empty_prob}")
+        if self.min_gap < 1:
+            raise ValueError(f"min_gap must be >= 1; got {self.min_gap}")
+        if self.k_dist not in _VALID_K_DISTS:
+            raise ValueError(
+                f"k_dist must be one of {_VALID_K_DISTS}; got {self.k_dist!r}"
+            )
+
 
 def max_anchors_under_gap(D_axis: int, min_gap: int) -> int:
     """Largest K such that K positions with spacing >= min_gap fit in [0, D_axis).
@@ -34,13 +46,8 @@ def choose_anchor_count(D_axis: int, spec: AnchorSpec) -> int:
     max_K = max_anchors_under_gap(D_axis, spec.min_gap)
     if spec.k_dist == "uniform":
         return random.randint(1, max_K)
-    if spec.k_dist == "log_uniform":
-        ks = list(range(1, max_K + 1))
-        weights = [1.0 / k for k in ks]
-        return random.choices(ks, weights=weights, k=1)[0]
-    raise ValueError(
-        f"unknown k_dist={spec.k_dist!r}; expected 'uniform' or 'log_uniform'"
-    )
+    ks = range(1, max_K + 1)
+    return random.choices(ks, weights=[1.0 / k for k in ks], k=1)[0]
 
 
 def sample_positions_with_gap(D_axis: int, K: int, min_gap: int) -> list[int]:

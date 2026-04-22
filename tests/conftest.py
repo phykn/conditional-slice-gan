@@ -73,7 +73,11 @@ def mock_run_dir(tmp_path, tiny_cfg):
     run_dir = tmp_path / "run_mock"
     (run_dir / "weights").mkdir(parents=True)
     OmegaConf.save(tiny_cfg, run_dir / "config.yaml")
-    torch.save(build_generator(tiny_cfg).state_dict(), run_dir / "weights" / "generator.pth")
+    torch.save(
+        build_generator(tiny_cfg).state_dict(), run_dir / "weights" / "generator.pth"
+    )
     for i in range(3):
-        torch.save(build_critic(tiny_cfg).state_dict(), run_dir / "weights" / f"critic_{i}.pth")
+        torch.save(
+            build_critic(tiny_cfg).state_dict(), run_dir / "weights" / f"critic_{i}.pth"
+        )
     return run_dir

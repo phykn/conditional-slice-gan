@@ -37,13 +37,12 @@ class Predictor:
         """uint8 (H, W) / (H, W, C) anchor -> (C, H, W) float32 in [-1, 1]."""
         normed = normalize_image(img, self.in_channels)
         if normed.ndim == 2:
-            return normed[None, :, :]
-        if normed.ndim == 3 and normed.shape[-1] == self.in_channels:
-            return np.transpose(normed, (2, 0, 1))
-        raise ValueError(
-            f"anchor image shape {img.shape} not interpretable; "
-            f"expected (H, W) or (H, W, {self.in_channels})"
-        )
+            normed = normed[..., None]
+        if normed.shape[-1] != self.in_channels:
+            raise ValueError(
+                f"anchor image shape {img.shape} incompatible with in_channels={self.in_channels}"
+            )
+        return np.transpose(normed, (2, 0, 1))
 
     @torch.no_grad()
     def predict(
