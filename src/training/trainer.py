@@ -34,6 +34,19 @@ def _slice_along_axis(volume: torch.Tensor, axis: int) -> torch.Tensor:
     raise ValueError(f"axis must be 0, 1, or 2; got {axis}")
 
 
+def _drop_axis0_anchors(
+    slices_2d: torch.Tensor, mask: torch.Tensor
+) -> torch.Tensor:
+    """Filter out axis-0 slices at anchor positions.
+
+    ``slices_2d`` is ``(B*D, C, H, W)`` from ``_slice_along_axis(..., 0)`` — flattened
+    in (b, d) order. ``mask`` is ``(B, 1, D, H, W)`` and is constant 1 over (H, W)
+    at anchor indices, so per-(b, d) anchor membership is read from ``mask[:, 0, :, 0, 0]``.
+    """
+    keep = (mask[:, 0, :, 0, 0] == 0).flatten()
+    return slices_2d[keep]
+
+
 def _recon_loss(
     fake: torch.Tensor,
     target: torch.Tensor,
@@ -55,7 +68,7 @@ class ConditionalSliceGANTrainer:
         anchor: AnchorSpec,
         batch_size: int,
         gp_lambda: float = 10.0,
-        recon_lambda: float = 10.0,
+        recon_lambda: float = 1.0,
         gen_freq: int = 5,
         steps: int = 360000,
         save_freq: int = 1000,
@@ -136,6 +149,8 @@ class ConditionalSliceGANTrainer:
         with torch.no_grad():
             fake_3d = self.netG(sparse, mask)
         fake = _slice_along_axis(fake_3d, axis)
+        if axis == 0:
+            fake = _drop_axis0_anchors(fake, mask)
 
         real_score = netC(real).mean()
         fake_score = netC(fake).mean()
@@ -160,7 +175,12 @@ class ConditionalSliceGANTrainer:
         self.optG.zero_grad(set_to_none=True)
 
         fake_3d = self.netG(sparse, mask)
-        scores = [self.netCs[a](_slice_along_axis(fake_3d, a)).mean() for a in range(3)]
+        scores = []
+        for a in range(3):
+            fake_a = _slice_along_axis(fake_3d, a)
+            if a == 0:
+                fake_a = _drop_axis0_anchors(fake_a, mask)
+            scores.append(self.netCs[a](fake_a).mean())
         adv = -torch.stack(scores).mean()
 
         rec = _recon_loss(fake_3d, sparse, mask)

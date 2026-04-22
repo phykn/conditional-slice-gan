@@ -9,6 +9,7 @@ from src.builder import (
     build_optimizer,
     build_trainer,
 )
+from src.training.trainer import _drop_axis0_anchors, _slice_along_axis
 
 
 def _trainer(tiny_cfg):
@@ -71,6 +72,36 @@ def test_critic_real_batch_size(tiny_cfg):
         assert real.shape[0] == expected, (
             f"axis {axis}: real batch size {real.shape[0]} != B * train_shape[axis] = {expected}"
         )
+
+
+def test_drop_axis0_anchors_filters_mask_positions():
+    B, C, D, H, W = 2, 1, 4, 3, 3
+    volume = torch.zeros(B, C, D, H, W)
+    for b in range(B):
+        for d in range(D):
+            volume[b, 0, d] = float(b * 10 + d)
+
+    mask = torch.zeros(B, 1, D, H, W)
+    mask[0, 0, 0] = 1.0  # sample 0 anchor at d=0
+    mask[0, 0, 2] = 1.0  # sample 0 anchor at d=2
+    mask[1, 0, 1] = 1.0  # sample 1 anchor at d=1
+
+    slices = _slice_along_axis(volume, 0)
+    kept = _drop_axis0_anchors(slices, mask)
+
+    # sample 0 keeps d=1,3 (vals 1, 3); sample 1 keeps d=0,2,3 (vals 10, 12, 13)
+    kept_vals = kept[:, 0, 0, 0].tolist()
+    assert kept_vals == [1.0, 3.0, 10.0, 12.0, 13.0]
+
+
+def test_drop_axis0_anchors_empty_mask_keeps_all():
+    B, C, D, H, W = 2, 1, 4, 3, 3
+    volume = torch.randn(B, C, D, H, W)
+    mask = torch.zeros(B, 1, D, H, W)
+    slices = _slice_along_axis(volume, 0)
+    kept = _drop_axis0_anchors(slices, mask)
+    assert kept.shape[0] == B * D
+    assert torch.equal(kept, slices)
 
 
 def test_sparse_only_along_anchor_axis(tiny_cfg):

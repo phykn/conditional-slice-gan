@@ -29,3 +29,12 @@ def test_gradient_penalty_backward_populates_grads():
     gp = gradient_penalty(netC, real, fake)
     gp.backward()
     assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in netC.parameters())
+
+
+def test_gradient_penalty_handles_more_reals_than_fakes():
+    netC = _critic()
+    real = torch.randn(10, 1, 16, 16)
+    fake = torch.randn(2, 1, 16, 16)
+    gp = gradient_penalty(netC, real, fake, gp_lambda=10.0)
+    assert gp.dim() == 0
+    assert gp.item() >= 0.0

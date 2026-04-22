@@ -10,24 +10,24 @@ def gradient_penalty(
     fake_data: torch.Tensor,
     gp_lambda: float = 10.0,
 ) -> torch.Tensor:
-    """WGAN-GP penalty. Fake batch is subsampled to match real batch size.
-
-    With the current trainer `n_real == n_fake` always (real count is ``B * S_axis``
-    and fake is slice-expanded to the same size), so the randperm below is a no-op.
-    The subsample is kept as a defensive path: if callers ever pass asymmetric
-    batches (e.g. slice-expanding across multiple axes), interpolation still requires
-    matching sizes.
-    """
+    """WGAN-GP penalty. Interpolation needs matching batch sizes, so whichever
+    side is larger is randomly subsampled down to ``min(n_real, n_fake)``."""
     n_real = real_data.size(0)
     n_fake = fake_data.size(0)
-    assert n_real <= n_fake, "fake batch must be at least as large as real batch"
+    n = min(n_real, n_fake)
+    assert n > 0, "real and fake batches must be non-empty"
     device = real_data.device
 
-    idx = torch.randperm(n_fake, device=device)[:n_real]
-    fake = fake_data[idx]
+    real = real_data
+    if n_real > n:
+        real = real_data[torch.randperm(n_real, device=device)[:n]]
 
-    alpha = torch.rand(n_real, 1, 1, 1, device=device)
-    inputs = alpha * real_data.detach() + (1.0 - alpha) * fake.detach()
+    fake = fake_data
+    if n_fake > n:
+        fake = fake_data[torch.randperm(n_fake, device=device)[:n]]
+
+    alpha = torch.rand(n, 1, 1, 1, device=device)
+    inputs = alpha * real.detach() + (1.0 - alpha) * fake.detach()
     inputs.requires_grad_(True)
 
     outputs = netC(inputs)

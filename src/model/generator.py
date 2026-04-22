@@ -9,11 +9,11 @@ class DownBlock3D(nn.Module):
         self.conv = nn.Conv3d(
             in_ch, out_ch, kernel_size=4, stride=2, padding=1, bias=False
         )
-        self.bn = nn.BatchNorm3d(out_ch)
+        self.norm = nn.InstanceNorm3d(out_ch, affine=True)
         self.act = nn.LeakyReLU(0.2, inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.act(self.bn(self.conv(x)))
+        return self.act(self.norm(self.conv(x)))
 
 
 class UpBlock3D(nn.Module):
@@ -22,11 +22,11 @@ class UpBlock3D(nn.Module):
         self.conv = nn.ConvTranspose3d(
             in_ch, out_ch, kernel_size=4, stride=2, padding=1, bias=False
         )
-        self.bn = nn.BatchNorm3d(out_ch)
+        self.norm = nn.InstanceNorm3d(out_ch, affine=True)
         self.act = nn.ReLU(inplace=True) if act else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.act(self.bn(self.conv(x)))
+        return self.act(self.norm(self.conv(x)))
 
 
 class UNet3DGenerator(nn.Module):
@@ -80,7 +80,7 @@ class UNet3DGenerator(nn.Module):
             trunc_normal_(m.weight.data, std=0.02)
             if m.bias is not None:
                 constant_(m.bias.data, 0.0)
-        elif isinstance(m, nn.BatchNorm3d):
+        elif isinstance(m, nn.InstanceNorm3d) and m.affine:
             constant_(m.weight.data, 1.0)
             constant_(m.bias.data, 0.0)
 

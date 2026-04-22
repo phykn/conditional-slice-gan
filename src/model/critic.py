@@ -22,7 +22,7 @@ class DownBlock2D(nn.Module):
             padding=padding,
             bias=False,
         )
-        self.act = nn.ReLU(inplace=True) if act else nn.Identity()
+        self.act = nn.LeakyReLU(0.2, inplace=True) if act else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.act(self.conv(x))
