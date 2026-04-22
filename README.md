@@ -87,7 +87,7 @@ Rules at inference: anchors are planted along axis 0 (fixed); spacing between an
 tensorboard --logdir run
 ```
 
-Scalars under `train/`: `critic_real_score`, `critic_fake_score`, `wass_dist`, `gp`, `loss`, and (every `gen_freq` steps) `generator_loss`, `recon_loss`, `adv_loss`.
+Scalars under `train/` (averaged across the three critics): `critic_real_score`, `critic_fake_score`, `wass_dist`, `gp`, `loss`, and (every `gen_freq` steps) `generator_loss`, `recon_loss`, `adv_loss`. Per-axis critic scalars live under `train/axis{0,1,2}/`.
 
 ## Config conventions
 
@@ -95,6 +95,7 @@ Scalars under `train/`: `critic_real_score`, `critic_fake_score`, `wass_dist`, `
 - `generator` uses `enc_channels` / `dec_channels` (same length); the first encoder block takes `in_channels + 1 mask` and the final layer projects back to `in_channels` via a 1×1 Conv3d. You set `in_channels` once on `data`, not on generator.
 - `data.train_shape` must be divisible by `2 ** len(enc_channels)`.
 - `anchor.min_gap ≥ 1`. Larger values reduce the number of anchors per batch — the upper bound on K is derived automatically.
+- `anchor.k_dist` must be `uniform` or `log_uniform`.
 - `data.images` must resolve to a per-axis pool for each of 0/1/2, either through `shared` or through `axisK` overrides.
 
 `validate_config(cfg)` runs at startup and refuses to proceed on mismatch.
