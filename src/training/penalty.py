@@ -12,19 +12,17 @@ def gradient_penalty(
 ) -> torch.Tensor:
     """WGAN-GP penalty. Interpolation needs matching batch sizes, so whichever
     side is larger is randomly subsampled down to ``min(n_real, n_fake)``."""
-    n_real = real_data.size(0)
-    n_fake = fake_data.size(0)
-    n = min(n_real, n_fake)
+    n = min(real_data.size(0), fake_data.size(0))
     assert n > 0, "real and fake batches must be non-empty"
     device = real_data.device
 
-    real = real_data
-    if n_real > n:
-        real = real_data[torch.randperm(n_real, device=device)[:n]]
+    def _subsample(data: torch.Tensor) -> torch.Tensor:
+        if data.size(0) == n:
+            return data
+        return data[torch.randperm(data.size(0), device=device)[:n]]
 
-    fake = fake_data
-    if n_fake > n:
-        fake = fake_data[torch.randperm(n_fake, device=device)[:n]]
+    real = _subsample(real_data)
+    fake = _subsample(fake_data)
 
     alpha = torch.rand(n, 1, 1, 1, device=device)
     inputs = alpha * real.detach() + (1.0 - alpha) * fake.detach()
