@@ -5,14 +5,13 @@ import torch
 from src.builder import (
     build_critic,
     build_generator,
+    build_image_loader,
     build_optimizer,
     build_trainer,
 )
 
 
 def _trainer(tiny_cfg):
-    from src.builder import build_image_loader
-
     netG = build_generator(tiny_cfg)
     netCs = [build_critic(tiny_cfg) for _ in range(3)]
     optG = build_optimizer(tiny_cfg, netG.parameters())

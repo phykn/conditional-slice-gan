@@ -3,10 +3,12 @@ import pytest
 from src.builder import (
     build_critic,
     build_generator,
+    build_image_loader,
     build_optimizer,
     build_trainer,
     validate_config,
 )
+from src.data.image_dataset import ImageDataset
 from src.model.generator import UNet3DGenerator
 from src.model.critic import Critic2D
 
@@ -50,9 +52,6 @@ def test_build_critic(tiny_cfg):
 
 
 def test_build_image_loader(tiny_cfg):
-    from src.builder import build_image_loader
-    from src.data.image_dataset import ImageDataset
-
     loader = build_image_loader(tiny_cfg)
     assert isinstance(loader, ImageDataset)
     batch = loader.sample(axis=0, count=2)
@@ -66,8 +65,6 @@ def test_build_optimizer(tiny_cfg):
 
 
 def test_build_trainer(tiny_cfg):
-    from src.builder import build_image_loader
-
     g = build_generator(tiny_cfg)
     cs = [build_critic(tiny_cfg) for _ in range(3)]
     optG = build_optimizer(tiny_cfg, g.parameters())
