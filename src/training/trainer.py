@@ -161,7 +161,7 @@ class ConditionalSliceGANTrainer:
             "loss": loss.item(),
         }
 
-    def step_generator(
+    def _update_generator(
         self, sparse: torch.Tensor, mask: torch.Tensor
     ) -> dict[str, float]:
         self.netG.train()
@@ -208,7 +208,7 @@ class ConditionalSliceGANTrainer:
             self.writer.add_scalar(f"train/{k}", v, global_step)
 
         if global_step > 0 and global_step % self.gen_freq == 0:
-            gen_losses = self.step_generator(sparse, mask)
+            gen_losses = self._update_generator(sparse, mask)
             for k, v in gen_losses.items():
                 self.writer.add_scalar(f"train/{k}", v, global_step)
             losses.update(gen_losses)
