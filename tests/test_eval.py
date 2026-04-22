@@ -53,3 +53,45 @@ def test_volume_to_axis_batches_rgb():
     assert (batches[0][:, 0] == 10).all()
     assert (batches[0][:, 1] == 20).all()
     assert (batches[0][:, 2] == 30).all()
+
+
+from src.builder import build_critic, build_generator
+from src.inference.eval import generate_fake_volume
+from src.inference.predictor import Predictor
+from omegaconf import OmegaConf
+
+
+def _tiny_predictor(tmp_path, tiny_cfg) -> Predictor:
+    run_dir = tmp_path / "run_mock"
+    (run_dir / "weights").mkdir(parents=True)
+    OmegaConf.save(tiny_cfg, run_dir / "config.yaml")
+    netG = build_generator(tiny_cfg)
+    torch.save(netG.state_dict(), run_dir / "weights" / "generator.pth")
+    for i in range(3):
+        c = build_critic(tiny_cfg)
+        torch.save(c.state_dict(), run_dir / "weights" / f"critic_{i}.pth")
+    return Predictor(str(run_dir), device="cpu")
+
+
+def test_generate_fake_volume_k_zero(tmp_path, tiny_cfg):
+    p = _tiny_predictor(tmp_path, tiny_cfg)
+    gt = np.zeros((8, 8, 8), dtype=np.uint8)
+    out = generate_fake_volume(p, gt, k=0, seed=0)
+    assert out.shape == (8, 8, 8)
+    assert out.dtype == np.uint8
+
+
+def test_generate_fake_volume_k_positive(tmp_path, tiny_cfg):
+    p = _tiny_predictor(tmp_path, tiny_cfg)
+    gt = np.arange(8 * 8 * 8, dtype=np.uint8).reshape(8, 8, 8)
+    out = generate_fake_volume(p, gt, k=3, seed=0)
+    assert out.shape == (8, 8, 8)
+    assert out.dtype == np.uint8
+
+
+def test_generate_fake_volume_reproducible(tmp_path, tiny_cfg):
+    p = _tiny_predictor(tmp_path, tiny_cfg)
+    gt = np.zeros((8, 8, 8), dtype=np.uint8)
+    a = generate_fake_volume(p, gt, k=2, seed=42)
+    b = generate_fake_volume(p, gt, k=2, seed=42)
+    assert np.array_equal(a, b)

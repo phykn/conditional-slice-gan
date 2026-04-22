@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 
+from .predictor import Predictor
+
 
 def predictor_output_to_uint8(out_float: np.ndarray) -> np.ndarray:
     """Convert predictor float output in [-1, 1] to uint8 in [0, 255]."""
@@ -40,3 +42,35 @@ def volume_to_axis_batches(
             t = t.expand(-1, 3, -1, -1).contiguous()  # replicate channels 1 -> 3
         batches.append(t.to(device))
     return batches
+
+
+def generate_fake_volume(
+    predictor: Predictor,
+    gt_volume: np.ndarray,
+    k: int,
+    seed: int,
+) -> np.ndarray:
+    """Generate one fake volume conditioned on ``k`` GT axis-0 slices picked
+    at random index positions. k=0 -> unconditioned. Returns uint8 volume
+    shaped (D, H, W) for grayscale or (D, H, W, C) for multi-channel."""
+    D = gt_volume.shape[0]
+    if not 0 <= k <= D:
+        raise ValueError(f"k={k} out of range [0, {D}]")
+    rng = np.random.default_rng(seed)
+    if k == 0:
+        anchor_images: list[np.ndarray] = []
+        anchor_indices: list[int] = []
+    else:
+        idx = rng.choice(D, size=k, replace=False)
+        anchor_images = [gt_volume[int(i)] for i in idx]
+        anchor_indices = [int(i) for i in idx]
+
+    out_float = predictor.predict(
+        anchor_images=anchor_images,
+        anchor_indices=anchor_indices,
+        seed=seed,
+    )
+    out_uint8 = predictor_output_to_uint8(out_float)
+    if predictor.in_channels == 1:
+        return out_uint8[..., 0]
+    return out_uint8
