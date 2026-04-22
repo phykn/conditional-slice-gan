@@ -11,7 +11,6 @@ class DownBlock2D(nn.Module):
         kernel_size: int,
         stride: int = 2,
         padding: int = 1,
-        bias: bool = False,
         act: bool = True,
     ) -> None:
         super().__init__()
@@ -21,7 +20,7 @@ class DownBlock2D(nn.Module):
             kernel_size=kernel_size,
             stride=stride,
             padding=padding,
-            bias=bias,
+            bias=False,
         )
         self.act = nn.ReLU(inplace=True) if act else nn.Identity()
 
@@ -51,7 +50,6 @@ class Critic2D(nn.Module):
                     kernel_size=k,
                     stride=s,
                     padding=p,
-                    bias=False,
                     act=act,
                 )
                 for a, b, k, s, p, act in zip(
