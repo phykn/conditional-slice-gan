@@ -5,3 +5,4 @@ bat/
 run/
 docs/
 .worktrees/
+DESIGN.md
