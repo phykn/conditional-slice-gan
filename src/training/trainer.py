@@ -61,17 +61,17 @@ def _custom_scalar_layout() -> dict:
     per_axis_metrics = ["critic_real_score", "critic_fake_score", "wass_dist", "gp", "loss"]
     return {
         "per_axis": {
-            m: ["Multiline", [f"train/axis{a}/{m}" for a in range(3)]]
+            m: ["Multiline", [f"axis{a}/{m}" for a in range(3)]]
             for m in per_axis_metrics
         },
         "averaged": {
-            "critic_scores": ["Multiline", ["train/critic_real_score", "train/critic_fake_score"]],
-            "wass_dist": ["Multiline", ["train/wass_dist"]],
-            "gp": ["Multiline", ["train/gp"]],
-            "critic_loss": ["Multiline", ["train/loss"]],
+            "critic_scores": ["Multiline", ["avg/critic_real_score", "avg/critic_fake_score"]],
+            "wass_dist": ["Multiline", ["avg/wass_dist"]],
+            "gp": ["Multiline", ["avg/gp"]],
+            "critic_loss": ["Multiline", ["avg/loss"]],
         },
         "generator": {
-            "losses": ["Multiline", ["train/generator_loss", "train/adv_loss", "train/recon_loss"]],
+            "losses": ["Multiline", ["gen/generator_loss", "gen/adv_loss", "gen/recon_loss"]],
         },
     }
 
@@ -221,16 +221,16 @@ class ConditionalSliceGANTrainer:
             c_losses = self._update_critic(axis, real_2d, fake_3d, mask)
             per_axis.append(c_losses)
             for k, v in c_losses.items():
-                self.writer.add_scalar(f"train/axis{axis}/{k}", v, global_step)
+                self.writer.add_scalar(f"axis{axis}/{k}", v, global_step)
 
         losses = {k: sum(d[k] for d in per_axis) / 3 for k in per_axis[0]}
         for k, v in losses.items():
-            self.writer.add_scalar(f"train/{k}", v, global_step)
+            self.writer.add_scalar(f"avg/{k}", v, global_step)
 
         if global_step > 0 and global_step % self.gen_freq == 0:
             gen_losses = self._update_generator(sparse, mask)
             for k, v in gen_losses.items():
-                self.writer.add_scalar(f"train/{k}", v, global_step)
+                self.writer.add_scalar(f"gen/{k}", v, global_step)
             losses.update(gen_losses)
 
         return losses

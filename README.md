@@ -87,7 +87,7 @@ Rules at inference: anchors are planted along axis 0 (fixed); spacing between an
 tensorboard --logdir run
 ```
 
-Scalars under `train/` (averaged across the three critics): `critic_real_score`, `critic_fake_score`, `wass_dist`, `gp`, `loss`, and (every `gen_freq` steps) `generator_loss`, `recon_loss`, `adv_loss`. Per-axis critic scalars live under `train/axis{0,1,2}/`.
+Scalars are split into five top-level groups that collapse independently in the SCALARS tab: `avg/` (averaged across the three critics: `critic_real_score`, `critic_fake_score`, `wass_dist`, `gp`, `loss`), `axis0/`, `axis1/`, `axis2/` (same five per critic), and `gen/` (every `gen_freq` steps: `generator_loss`, `adv_loss`, `recon_loss`). A **CUSTOM SCALARS** tab groups these into per-axis comparison charts, an averaged group, and a generator group.
 
 ## Config conventions
 
