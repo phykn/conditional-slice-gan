@@ -48,11 +48,13 @@ class Predictor:
     @torch.no_grad()
     def predict(
         self,
-        anchor_images: list[np.ndarray] = [],
-        anchor_indices: list[int] = [],
+        anchor_images: list[np.ndarray] | None = None,
+        anchor_indices: list[int] | None = None,
         shape: tuple[int, int, int] | None = None,
         seed: int | None = None,
     ) -> np.ndarray:
+        anchor_images = anchor_images if anchor_images is not None else []
+        anchor_indices = anchor_indices if anchor_indices is not None else []
         if len(anchor_images) != len(anchor_indices):
             raise ValueError("anchor_images and anchor_indices must have same length")
 
